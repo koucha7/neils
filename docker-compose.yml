@@ -1,0 +1,52 @@
+
+# MomoNail/docker-compose.yml
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13                 # PostgreSQLのバージョン13を使用
+    container_name: momonail_db
+    environment:
+      POSTGRES_DB: ${DB_NAME}          # .env ファイルから読み込む
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data # データ永続化
+    ports:
+      - "5432:5432" # 外部からDBに接続したい場合（開発中は不要な場合も）
+
+  backend:
+    build:
+      context: ./backend               # backendディレクトリのDockerfileを使用
+      dockerfile: Dockerfile
+    container_name: momonail_backend
+    command: python manage.py runserver 0.0.0.0:8000 # Django開発サーバーを起動
+    volumes:
+      - ./backend:/app                 # ホストのbackendディレクトリをコンテナの/appにマウント
+    ports:
+      - "8000:8000"                    # ホストの8000番ポートとコンテナの8000番ポートをマッピング
+    depends_on:
+      - db                             # dbサービスが起動するのを待つ
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME} # DB接続情報
+ 
+  frontend:
+    build:
+      context: ./frontend              # frontendディレクトリのDockerfileを使用
+      dockerfile: Dockerfile
+    container_name: momonail_frontend
+    command: npm run dev               # Vue.js/Reactの開発サーバー起動コマンド
+    volumes:
+      - ./frontend:/app                # ホストのfrontendディレクトリをコンテナの/appにマウント
+      - /app/node_modules              # node_modulesはホストからマウントせず、コンテナ内で管理
+    ports:
+      - "3000:3000"                    # ホストの3000番ポートとコンテナの3000番ポートをマッピング (Vue:8000, React:3000が一般的。要調整)
+    depends_on:
+      - backend                        # 必要であれば、バックエンドの起動を待つ
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000 # フロントエンドからバックエンドAPIを叩くURL (Vue/Viteの場合)
+      # REACT_APP_API_BASE_URL: http://localhost:8000 # Reactの場合
+
+volumes:
+  db_data: # データベースのデータを保存するためのボリューム
