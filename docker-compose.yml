@@ -33,20 +33,20 @@ services:
  
   frontend:
     build:
-      context: ./frontend              # frontendディレクトリのDockerfileを使用
+      context: ./frontend
       dockerfile: Dockerfile
     container_name: momonail_frontend
-    command: npm run dev               # Vue.js/Reactの開発サーバー起動コマンド
+    # 変更点: command に --host 0.0.0.0 を追加
+    command: npm run dev -- --host 0.0.0.0 # Viteが0.0.0.0でリッスンするようにする
     volumes:
-      - ./frontend:/app                # ホストのfrontendディレクトリをコンテナの/appにマウント
-      - /app/node_modules              # node_modulesはホストからマウントせず、コンテナ内で管理
+      - ./frontend:/app
+      - /app/node_modules
     ports:
-      - "3000:3000"                    # ホストの3000番ポートとコンテナの3000番ポートをマッピング (Vue:8000, React:3000が一般的。要調整)
+      - "3000:3000"
     depends_on:
-      - backend                        # 必要であれば、バックエンドの起動を待つ
+      - backend
     environment:
-      VITE_API_BASE_URL: http://localhost:8000 # フロントエンドからバックエンドAPIを叩くURL (Vue/Viteの場合)
-      # REACT_APP_API_BASE_URL: http://localhost:8000 # Reactの場合
+      VITE_API_BASE_URL: http://localhost:8000
 
 volumes:
   db_data: # データベースのデータを保存するためのボリューム
