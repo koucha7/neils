@@ -2,4 +2,5 @@
 
 Django~=4.0 # 使用するDjangoのバージョン
 psycopg2-binary # PostgreSQLに接続するためのライブラリ
-# 他に必要なライブラリを追記
+djangorestframework~=3.14
+django-cors-headers
