@@ -36,17 +36,17 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: momonail_frontend
-    # 変更点: command に --host 0.0.0.0 を追加
-    command: npm run dev -- --host 0.0.0.0 # Viteが0.0.0.0でリッスンするようにする
+    command: npm run dev -- --host 0.0.0.0
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - /app/node_modules # node_modulesをボリュームとしてマウントする（ホストとの同期を避けるため）
     ports:
-      - "3000:3000"
+      - "5173:5173"
     depends_on:
       - backend
     environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      # ここを修正します
+      - VITE_API_BASE_URL=http://backend:8000 # バックエンドサービス名を使用
 
 volumes:
   db_data: # データベースのデータを保存するためのボリューム

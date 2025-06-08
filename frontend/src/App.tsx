@@ -1,5 +1,5 @@
 // MomoNail/frontend/src/App.tsx
-
+import React from 'react';
 import './App.css'; // 必要であれば、App固有のCSS (例: Tailwind CSSがメインなら不要な場合も)
 import { Link } from 'react-router-dom'; // ページ遷移のためのLinkコンポーネント
 
