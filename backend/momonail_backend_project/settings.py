@@ -8,6 +8,8 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') # ★環境変数から読み�
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') # ★環境変数で設定 (Renderで設定)
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 # DATABASE_URL 環境変数から読み込む
 DATABASES = {
     'default': dj_database_url.config(
