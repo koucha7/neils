@@ -1,6 +1,15 @@
-# MomoNail/backend/requirements.txt
-
-Django~=4.0 # 使用するDjangoのバージョン
-psycopg2-binary # PostgreSQLに接続するためのライブラリ
-djangorestframework~=3.14
+Django==4.2.22
+celery==5.3.6
+dj-database-url==2.1.0 # ★追加: データベースURL解析用
+django-celery-beat==2.6.0
 django-cors-headers
+djangorestframework==3.15.1
+google-api-python-client==2.130.0
+google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0
+gunicorn==22.0.0      # ★追加
+psycopg2-binary==2.9.9
+redis==5.0.4
+requests==2.32.3
+whitenoise==6.6.0     # ★追加: 静的ファイル配信 (Gunicornと組み合わせる場合)
+dj-database-url

@@ -9,7 +9,7 @@ const ReservationComplete: React.FC = () => {
 
     return (
         <div className="container mx-auto p-10 text-center bg-white rounded-lg shadow-xl mt-10">
-            <h2 className="text-4xl font-extrabold text-green-600 mb-6">予約が完了しました！ 🎉</h2>
+            <h2 className="text-4xl font-extrabold text-green-600 mb-6">予約が完了しました！</h2>
             <p className="text-xl mb-4 text-gray-800">ご予約ありがとうございます。以下の内容で承りました。</p>
             {/* 予約番号の表示 */}
             <p className="text-3xl font-semibold text-blue-700 mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg inline-block">

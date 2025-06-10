@@ -1,0 +1,16 @@
+/* frontend/src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ここにカスタムCSSを追加することもできます */
+body {
+  font-family: 'Noto Sans JP', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* 日本語フォントを優先し、フォールバックも指定 */
+  background-color: #f0f2f5; /* アプリ全体の背景色 */
+  color: #333; /* デフォルトの文字色 */
+}
+
+/* react-datepickerのカレンダーが他の要素の下に隠れないようにz-indexを調整 */
+.react-datepicker-popper {
+    z-index: 9999; /* 非常に高い値に設定して、常に手前に表示されるようにする */
+}

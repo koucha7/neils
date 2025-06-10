@@ -30,6 +30,9 @@ services:
       - db                             # dbサービスが起動するのを待つ
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME} # DB接続情報
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN}
+      LINE_USER_ID: ${LINE_USER_ID}
+      GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID}
  
   frontend:
     build:
@@ -45,8 +48,7 @@ services:
     depends_on:
       - backend
     environment:
-      # ここを修正します
-      - VITE_API_BASE_URL=http://backend:8000 # バックエンドサービス名を使用
+      VITE_API_BASE_URL: http://localhost:8000/api 
 
 volumes:
   db_data: # データベースのデータを保存するためのボリューム

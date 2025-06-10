@@ -15,9 +15,7 @@ function App() {
           {/* 右側のナビゲーションリンク */}
           <div>
             {/* サロン選択が不要なので、直接予約開始ページへリンク */}
-            <Link to="/reserve" className="ml-4 text-lg hover:underline">オンライン予約</Link>
-            {/* 将来的に、ログインや予約履歴などのリンクをここに追加できます */}
-            {/* <Link to="/my-reservation" className="ml-4 text-lg hover:underline">予約確認</Link> */}
+            <Link to="/check" className="ml-4 text-lg hover:underline">予約確認</Link>
           </div>
         </nav>
       </header>
