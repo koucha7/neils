@@ -12,6 +12,8 @@ ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') # ★環�
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+ROOT_URLCONF = 'momonail_backend_project.urls'
+
 # DATABASE_URL 環境変数から読み込む
 DATABASES = {
     'default': dj_database_url.config(
