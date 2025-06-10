@@ -59,10 +59,3 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-
-urlpatterns = [
-    path('admin/', admin.site.urls), # これが存在するか
-    # 他のあなたのURLパターン
-    # path('api/', include('your_app_name.urls')),
-]
