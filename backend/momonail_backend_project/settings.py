@@ -34,3 +34,14 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # 'staticfiles' ディレク
 # MIDDLEWARE の適切な位置に 'whitenoise.middleware.WhiteNoiseMiddleware' を追加
 # 例: MIDDLEWARE = ['django.middleware.security.SecurityMiddleware', 'whitenoise.middleware.WhiteNoiseMiddleware', ...]
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage' # Whitenoise用
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles', # ← この行が追加されているか確認！
+    # あなたのカスタムアプリなど
+    # 'your_app_name',
+]
