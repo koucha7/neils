@@ -2,6 +2,8 @@
 import os
 import dj_database_url # ★追加
 
+from pathlib import Path
+
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') # ★環境変数から読み込む (Renderで設定)
