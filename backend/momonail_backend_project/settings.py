@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles', # ← この行が追加されているか確認！
+    'reservations',  # この行が追加されているか確認！
     # あなたのカスタムアプリなど
     # 'your_app_name',
 ]

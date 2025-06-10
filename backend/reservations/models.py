@@ -3,6 +3,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import timedelta
 
 class Salon(models.Model):
+    class Meta:
+        app_label = 'reservations'
     name = models.CharField(max_length=200)
     address = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=20)
