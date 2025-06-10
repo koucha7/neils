@@ -48,3 +48,21 @@ INSTALLED_APPS = [
     # あなたのカスタムアプリなど
     # 'your_app_name',
 ]
+
+MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+
+urlpatterns = [
+    path('admin/', admin.site.urls), # これが存在するか
+    # 他のあなたのURLパターン
+    # path('api/', include('your_app_name.urls')),
+]
