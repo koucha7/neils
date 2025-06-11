@@ -56,7 +56,7 @@ const MenuManagement: React.FC = () => {
             if (axios.isAxiosError(err) && err.response) { alert(`保存に失敗しました: ${JSON.stringify(err.response.data)}`); } else { alert('保存中に不明なエラーが発生しました。'); }
         }
     };
-    
+
     const handleDelete = async (id: number) => {
         if (!window.confirm("このメニューを削除しますか？")) return;
         try {
@@ -246,10 +246,6 @@ const ReservationList: React.FC = () => {
         { value: 'completed', label: '完了済み' },
     ];
 
-    const handleRowClick = (reservationNumber: string) => {
-        navigate(`/admin/reservations/${reservationNumber}`);
-    };
-
     const fetchReservations = useCallback(async () => {
         try {
             setLoading(true);
@@ -415,27 +411,26 @@ const ReservationList: React.FC = () => {
                                     {r.status !== 'cancelled' && r.status !== 'completed' && (<button onClick={() => handleCancel(r.reservation_number)} className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">取消</button>)}
                                 </td>
                             </tr>))}
-                        </tbody>
-                    </table>
+                    </tbody>
+                </table>
 
-                    {/* スマホ (sm未満の画面) ではリストを表示 */}
-                    <div className="sm:hidden space-y-4">
-                        {reservations.map(r => (
-                            <div key={r.id} className="bg-white shadow rounded-md p-4 cursor-pointer" onClick={() => handleRowClick(r.reservation_number)}>
-                                <p className="text-sm font-semibold text-gray-600">予約ID: {r.reservation_number}</p>
-                                <p className="text-sm font-semibold text-gray-600">日時: {new Date(r.start_time).toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                                <p className="text-sm font-semibold text-gray-600">顧客名: {r.customer_name}</p>
-                                <p className="text-sm font-semibold text-gray-600">メニュー: {r.service.name}</p>
-                                <p className="text-sm font-semibold text-gray-600">
-                                    ステータス: <span className={`px-2 py-1 text-xs font-semibold rounded-full ${r.status === 'pending' ? 'bg-yellow-200 text-yellow-800' : r.status === 'confirmed' ? 'bg-green-200 text-green-800' : r.status === 'cancelled' ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-800'}`}>{r.status}</span>
-                                </p>
-                                <div className="mt-2 space-x-2" onClick={(e) => e.stopPropagation()}>
-                                    {r.status === 'pending' && (<button onClick={() => handleConfirm(r.reservation_number)} className="bg-green-500 text-white px-2 py-1 text-xs rounded hover:bg-green-600">確定</button>)}
-                                    {r.status !== 'cancelled' && r.status !== 'completed' && (<button onClick={() => handleCancel(r.reservation_number)} className="bg-red-500 text-white px-2 py-1 text-xs rounded hover:bg-red-600">取消</button>)}
-                                </div>
+                {/* スマホ (sm未満の画面) ではリストを表示 */}
+                <div className="sm:hidden space-y-4">
+                    {reservations.map(r => (
+                        <div key={r.id} className="bg-white shadow rounded-md p-4 cursor-pointer" onClick={() => handleRowClick(r.reservation_number)}>
+                            <p className="text-sm font-semibold text-gray-600">予約ID: {r.reservation_number}</p>
+                            <p className="text-sm font-semibold text-gray-600">日時: {new Date(r.start_time).toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="text-sm font-semibold text-gray-600">顧客名: {r.customer_name}</p>
+                            <p className="text-sm font-semibold text-gray-600">メニュー: {r.service.name}</p>
+                            <p className="text-sm font-semibold text-gray-600">
+                                ステータス: <span className={`px-2 py-1 text-xs font-semibold rounded-full ${r.status === 'pending' ? 'bg-yellow-200 text-yellow-800' : r.status === 'confirmed' ? 'bg-green-200 text-green-800' : r.status === 'cancelled' ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-800'}`}>{r.status}</span>
+                            </p>
+                            <div className="mt-2 space-x-2" onClick={(e) => e.stopPropagation()}>
+                                {r.status === 'pending' && (<button onClick={() => handleConfirm(r.reservation_number)} className="bg-green-500 text-white px-2 py-1 text-xs rounded hover:bg-green-600">確定</button>)}
+                                {r.status !== 'cancelled' && r.status !== 'completed' && (<button onClick={() => handleCancel(r.reservation_number)} className="bg-red-500 text-white px-2 py-1 text-xs rounded hover:bg-red-600">取消</button>)}
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
@@ -504,13 +499,12 @@ const CancellationPolicyManagement: React.FC = () => {
 
     useEffect(() => { const fetchPolicy = async () => { try { const response = await api.get('/salons/1/'); setDeadline(response.data.cancellation_deadline_days); } catch (err) { setError('設定の読み込みに失敗しました。'); } finally { setLoading(false); } }; fetchPolicy(); }, []);
     const handleSave = async () => { setSaving(true); setSuccess(false); setError(null); try { await api.patch('/salons/1/', { cancellation_deadline_days: deadline }); setSuccess(true); setTimeout(() => setSuccess(false), 3000); } catch (err) { setError('設定の保存に失敗しました。'); } finally { setSaving(false); } };
-    
+
     if (loading) return <p>読み込み中...</p>;
     if (error) return <p className="text-red-500">{error}</p>;
-    if (!settings) return <p>設定データが見つかりません。</p>;
 
     return (
-        <div><h2 className="text-2xl font-bold mb-6">キャンセルポリシー設定</h2><div className="bg-white p-6 rounded-lg shadow max-w-lg"><div className="space-y-2"><label htmlFor="deadline-days" className="block text-lg font-semibold text-gray-800">キャンセル受付期限</label><p className="text-sm text-gray-500">お客様がご自身でキャンセルできるのは、予約日の何日前までかを設定します。</p><div className="flex items-center space-x-4 pt-2"><input type="number" id="deadline-days" value={deadline} onChange={(e) => setDeadline(parseInt(e.target.value, 10))} min="0" className="w-28 p-2 border border-gray-300 rounded-md shadow-sm"/><span className="text-gray-700">日前まで可能</span></div><p className="text-xs text-gray-500">例: 「2」と設定すると、予約日の2日前（前々日）まではキャンセル可能です。</p></div><div className="flex items-center justify-end pt-6 mt-6 border-t">{success && <p className="text-green-600 mr-4">保存しました！</p>}<button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50">{saving ? '保存中...' : '設定を保存'}</button></div></div></div>
+        <div><h2 className="text-2xl font-bold mb-6">キャンセルポリシー設定</h2><div className="bg-white p-6 rounded-lg shadow max-w-lg"><div className="space-y-2"><label htmlFor="deadline-days" className="block text-lg font-semibold text-gray-800">キャンセル受付期限</label><p className="text-sm text-gray-500">お客様がご自身でキャンセルできるのは、予約日の何日前までかを設定します。</p><div className="flex items-center space-x-4 pt-2"><input type="number" id="deadline-days" value={deadline} onChange={(e) => setDeadline(parseInt(e.target.value, 10))} min="0" className="w-28 p-2 border border-gray-300 rounded-md shadow-sm" /><span className="text-gray-700">日前まで可能</span></div><p className="text-xs text-gray-500">例: 「2」と設定すると、予約日の2日前（前々日）まではキャンセル可能です。</p></div><div className="flex items-center justify-end pt-6 mt-6 border-t">{success && <p className="text-green-600 mr-4">保存しました！</p>}<button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50">{saving ? '保存中...' : '設定を保存'}</button></div></div></div>
     );
 };
 
