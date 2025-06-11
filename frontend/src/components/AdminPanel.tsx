@@ -5,7 +5,7 @@ import { Calendar, Users, Scissors, LogOut, Bell, Shield, PlusCircle, Edit, Tras
 import DatePicker from 'react-datepicker'; // DatePickerをインポート
 import 'react-datepicker/dist/react-datepicker.css'; // DatePickerのCSSをインポート
 import { format, addDays } from 'date-fns'; // 日付フォーマット用, addDaysを追加
-import { ja } from 'date-fns/locale/ja'; // 日本語ロケール用
+import { ja } from 'date-fns/locale/ja';
 import { registerLocale } from 'react-datepicker'; // 日本語ロケール登録用
 import { useNavigate } from 'react-router-dom'; // ★追加: useNavigateをインポート
 
@@ -304,15 +304,13 @@ const ReservationList: React.FC = () => {
 
     // ★追加: ステータスチェックボックスの変更ハンドラ
     const handleStatusChange = (statusValue: string) => {
-        console.log("handleStatusChange called with:", statusValue); // ★この行を追加★
         setSelectedStatuses(prevStatuses => {
-            const newStatuses = prevStatuses.includes(statusValue)
-                ? prevStatuses.filter(s => s !== statusValue)
-                : [...prevStatuses, statusValue];
-            console.log("New selected statuses:", newStatuses); // ★この行を追加★
-            return newStatuses;
+            if (prevStatuses.includes(statusValue)) {
+                return prevStatuses.filter(s => s !== statusValue);
+            } else {
+                return [...prevStatuses, statusValue];
+            }
         });
-        // State更新後、fetchReservationsがトリガーされるか確認
     };
 
     const handleConfirm = async (reservationNumber: string) => {
@@ -442,10 +440,10 @@ const ReservationList: React.FC = () => {
                     {reservations.map(r => (
                         <div key={r.id} className="bg-white shadow rounded-md p-4 cursor-pointer" onClick={() => handleRowClick(r.reservation_number)}>
                             <p className="text-sm font-semibold text-gray-600">予約ID: {r.reservation_number}</p>
-                            <p className="text-sm text-gray-600">日時: {new Date(r.start_time).toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                            <p className="text-sm text-gray-600">顧客名: {r.customer_name}</p>
-                            <p className="text-sm text-gray-600">メニュー: {r.service.name}</p>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm font-semibold text-gray-600">日時: {new Date(r.start_time).toLocaleString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="text-sm font-semibold text-gray-600">顧客名: {r.customer_name}</p>
+                            <p className="text-sm font-semibold text-gray-600">メニュー: {r.service.name}</p>
+                            <p className="text-sm font-semibold text-gray-600">
                                 ステータス: <span className={`px-2 py-1 text-xs font-semibold rounded-full ${r.status === 'pending' ? 'bg-yellow-200 text-yellow-800' : r.status === 'confirmed' ? 'bg-green-200 text-green-800' : r.status === 'cancelled' ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-800'}`}>{r.status}</span>
                             </p>
                             <div className="mt-2 space-x-2" onClick={(e) => e.stopPropagation()}>
@@ -509,6 +507,7 @@ const NotificationSettingsManagement: React.FC = () => {
                 </div>
             </div>
         </div>
+        </div >
     );
 };
 
@@ -525,6 +524,7 @@ const CancellationPolicyManagement: React.FC = () => {
 
     if (loading) return <p>読み込み中...</p>;
     if (error) return <p className="text-red-500">{error}</p>;
+    if (!settings) return <p>設定データが見つかりません。</p>;
 
     return (
         <div>

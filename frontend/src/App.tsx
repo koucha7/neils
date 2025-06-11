@@ -1,40 +1,36 @@
-// MomoNail/frontend/src/App.tsx
-import React from 'react';
-import './App.css'; // 必要であれば、App固有のCSS (例: Tailwind CSSがメインなら不要な場合も)
-import { Link } from 'react-router-dom'; // ページ遷移のためのLinkコンポーネント
+// MomoNail/frontend/src/App.tsx の例
+// import React from 'react'; // ★この行を削除またはコメントアウト
+import './App.css';
+import { Link } from 'react-router-dom';
 
 function App() {
   return (
-    // アプリケーションのメインコンテナ。flexboxで中央配置し、背景色を設定
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-      {/* ヘッダー部分 */}
-      <header className="w-full max-w-4xl bg-blue-700 text-white p-4 rounded-t-lg shadow-md">
-        <nav className="flex justify-between items-center">
-          {/* 左側のロゴ（トップページへのリンク） */}
-          <Link to="/" className="text-2xl font-bold">MomoNail</Link>
-          {/* 右側のナビゲーションリンク */}
-          <div>
-            {/* サロン選択が不要なので、直接予約開始ページへリンク */}
-            <Link to="/check" className="ml-4 text-lg hover:underline">予約確認</Link>
-          </div>
-        </nav>
+    <div className="min-h-screen bg-gradient-to-br from-purple-500 to-indigo-600 flex flex-col justify-center items-center p-4">
+      <header className="text-center text-white mb-12">
+        <h1 className="text-5xl font-extrabold tracking-tight">NailMomo</h1>
+        <p className="mt-3 text-xl font-light">あなたの美しい指先をサポート</p>
       </header>
 
-      {/* メインコンテンツエリア */}
-      <main className="w-full max-w-4xl bg-white p-8 rounded-b-lg shadow-lg">
-        {/* アプリケーションのメインタイトル */}
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-6">MomoNailへようこそ！</h1>
-        {/* 説明文 */}
-        <p className="text-center text-gray-600 mb-8">
-          当サロンで最高のネイル体験をお楽しみください。<br />
-          お客様のご都合に合わせて、オンラインで簡単にメニューを選んでご予約いただけます。
-        </p>
-        {/* 予約開始への誘導ボタン */}
-        <div className="text-center">
-          <Link to="/reserve" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-md hover:shadow-lg transition duration-300 transform hover:scale-105">
-            今すぐ予約する
-          </Link>
-        </div>
+      <main className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-8">
+        <Link to="/reserve" className="bg-white text-indigo-700 px-8 py-4 rounded-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition duration-300 ease-in-out flex items-center justify-center text-xl font-semibold">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          今すぐ予約する
+        </Link>
+        <Link to="/check" className="bg-white text-purple-700 px-8 py-4 rounded-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition duration-300 ease-in-out flex items-center justify-center text-xl font-semibold">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          予約を確認・キャンセル
+        </Link>
+        <Link to="/admin" className="bg-white text-gray-700 px-8 py-4 rounded-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition duration-300 ease-in-out flex items-center justify-center text-xl font-semibold">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.324 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          管理者画面
+        </Link>
       </main>
     </div>
   );
