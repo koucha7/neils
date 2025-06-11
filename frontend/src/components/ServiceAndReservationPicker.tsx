@@ -68,9 +68,12 @@ const ServiceAndReservationPicker: React.FC = () => {
         setStepError(null);
     }, []);
 
-    const handleDateSelect = useCallback(async (date: Date) => {
+    const handleDateSelect = useCallback(async (date: Date | null) => {
         if (!selectedService) return;
-
+        if (!date) { // 修正点2: dateがnullの場合の処理を追加
+            setStepError("日付を選択してください。");
+            return;
+        }
         setSelectedDate(date);
         setTimeSlotsLoading(true);
         setStepError(null);

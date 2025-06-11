@@ -352,7 +352,7 @@ const ReservationList: React.FC = () => {
                         selectsEnd // 終了日ピッカーであることを指定
                         startDate={startDate}
                         endDate={endDate}
-                        minDate={startDate} // 終了日は開始日より後
+                        minDate={startDate || undefined} // 終了日は開始日より後
                     />
                     {(startDate || endDate) && ( // 両方または片方が選択されている場合
                         <button onClick={() => { setStartDate(null); setEndDate(null); }} className="text-gray-500 hover:text-gray-700">
