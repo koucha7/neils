@@ -25,4 +25,5 @@ RUN python manage.py collectstatic --noinput
 
 # Gunicornを起動コマンドに設定
 # 8080ポートでリッスン (Renderの要件)
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "momonail_backend_project.wsgi:application"] # ★修正箇所★
+#CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "momonail_backend_project.wsgi:application"] # ★修正箇所★
+CMD ["python", "manage.py", "createsuperuser"]
