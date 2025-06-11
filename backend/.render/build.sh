@@ -11,3 +11,5 @@ python manage.py collectstatic --noinput
 
 # データベースマイグレーションの実行
 python manage.py migrate --noinput
+
+python manage.py createsuperuser

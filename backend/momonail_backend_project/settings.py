@@ -31,10 +31,6 @@ CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
 # 静的ファイル設定 (本番用)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # 'staticfiles' ディレクトリに収集
-
-# Whitenoise を使用する場合
-# MIDDLEWARE の適切な位置に 'whitenoise.middleware.WhiteNoiseMiddleware' を追加
-# 例: MIDDLEWARE = ['django.middleware.security.SecurityMiddleware', 'whitenoise.middleware.WhiteNoiseMiddleware', ...]
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage' # Whitenoise用
 
 INSTALLED_APPS = [
@@ -50,9 +46,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # ★この位置を確認★
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # ★この位置を確認★
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -78,3 +75,17 @@ TEMPLATES = [
         },
     },
 ]
+
+# Google Calendar API & LINE API Keys
+GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
+LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
+LINE_USER_ID = os.environ.get('LINE_USER_ID')
+
+# メールの設定 (Gmailを使う例)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') # 環境変数で設定
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') # 環境変数で設定
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@yourdomain.com')
