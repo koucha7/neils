@@ -1,4 +1,3 @@
-# MomoNail/backend/.render/build.sh
 #!/usr/bin/env bash
 
 # エラーが発生したらスクリプトを終了
