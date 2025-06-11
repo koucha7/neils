@@ -59,3 +59,22 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates', # これが重要です
+        'DIRS': [
+            # あなたのプロジェクトのテンプレートディレクトリがあればここに追加
+            # os.path.join(BASE_DIR, 'templates'),
+        ],
+        'APP_DIRS': True, # これにより、各アプリのtemplatesディレクトリが自動的にロードされます
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
