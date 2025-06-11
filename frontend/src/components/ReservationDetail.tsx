@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { format } from 'date-fns';
-import ja from 'date-fns/locale/ja'; // 日本語ロケール用
+import { ja } from 'date-fns/locale/ja';
 import { ArrowLeft } from 'lucide-react'; // 戻るアイコン
 
 interface Reservation {

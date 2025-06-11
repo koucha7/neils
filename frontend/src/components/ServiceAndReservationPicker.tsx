@@ -4,7 +4,7 @@ import api from '../api/axiosConfig';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { format } from 'date-fns';
-import ja from 'date-fns/locale/ja';
+import { ja } from 'date-fns/locale/ja';
 import axios from 'axios';
 
 // react-datepickerを日本語化
