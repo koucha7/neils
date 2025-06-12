@@ -21,6 +21,12 @@ interface Reservation {
         price: string;
     };
 }
+    const allStatuses = [
+        { value: 'pending', label: '保留中' },
+        { value: 'confirmed', label: '確定済み' },
+        { value: 'cancelled', label: 'キャンセル済み' },
+        { value: 'completed', label: '完了済み' },
+    ];
 
 const ReservationCheck: React.FC = () => {
     const navigate = useNavigate();

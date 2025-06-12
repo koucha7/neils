@@ -158,7 +158,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 f"日時: {reservation.start_time.strftime('%Y-%m-%d %H:%M')}\n"
                 f"サービス: {reservation.service.name}\n\n"
                 f"▼予約詳細・確定はこちら\n"
-                f"http://localhost:8000/admin/reservations/reservation/{reservation.id}/change/"
+                f"http://momonail-frontend.onrender.com/admin/reservations/{reservation.id}"
             )
             send_line_notification(message)
         except Exception as e:
