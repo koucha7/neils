@@ -26,8 +26,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/reservation-complete/:reservationNumber" element={<ReservationComplete />} />
 
         {/* 管理者向け画面 */}
-        <Route path="/admin" element={<AdminPanel />} /> {/* ★ この行を追加 */}
-        <Route path="/admin/reservations/:reservationNumber" element={<ReservationDetail />} /> {/* ★追加: 予約詳細ルート */}
+        <Route path="/admin" element={<AdminPanel />} />
+        <Route path="/admin/reservations/:reservationNumber" element={<ReservationDetail />} />
       </Routes>
     </Router>
   </React.StrictMode>,
