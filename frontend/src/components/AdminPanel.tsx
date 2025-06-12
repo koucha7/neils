@@ -517,11 +517,27 @@ const LoginScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
 
 // --- メインコンポーネント ---
 const AdminPanel: React.FC = () => {
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(() => {
+        return localStorage.getItem('isLoggedIn') === 'true';
+    });
     const [page, setPage] = useState<'reservations' | 'schedule' | 'menu' | 'settings' | 'policy'>('reservations');
     const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
         return window.innerWidth >= 640;
     });
+
+    // ログイン状態が変化したら localStorage に保存する
+    useEffect(() => {
+        localStorage.setItem('isLoggedIn', String(isLoggedIn));
+    }, [isLoggedIn]);
+
+    const handleLogin = () => {
+        // ここに実際のユーザー名・パスワード検証処理を入れるのが望ましい
+        setIsLoggedIn(true);
+    };
+
+    const handleLogout = () => {
+        setIsLoggedIn(false);
+    };
 
     // isSidebarOpen の状態を更新する際の useCallback を追加
     const toggleSidebar = useCallback(() => {
@@ -539,8 +555,10 @@ const AdminPanel: React.FC = () => {
         }
     };
 
+
     if (!isLoggedIn) {
-        return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
+        // onLoginに関数を渡す
+        return <LoginScreen onLogin={handleLogin} />;
     }
 
     return (
