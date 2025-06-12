@@ -576,6 +576,7 @@ const AdminPanel: React.FC = () => {
                     {/* ログアウトボタンに関数を渡す */}
                     <button onClick={handleLogout} className="w-full text-left flex items-center px-4 py-2 rounded-md hover:bg-gray-700">
                         <LogOut className="mr-3" size={20} /> ログアウト
+                    </button>
                 </div>
             </aside>
 
