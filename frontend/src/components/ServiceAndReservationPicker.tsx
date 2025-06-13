@@ -1,0 +1,255 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom'; // ★ Linkをインポート
+import api from '../api/axiosConfig';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { format } from 'date-fns';
+import { ja } from 'date-fns/locale/ja';
+import axios from 'axios';
+
+// react-datepickerを日本語化
+registerLocale('ja', ja);
+
+// --- 型定義 ---
+interface Salon { id: number; name: string; address: string; phone_number: string; }
+interface Service { id: number; salon: number; name: string; price: string; duration_minutes: number; }
+
+const ServiceAndReservationPicker: React.FC = () => {
+    // --- 1. 全てのフックをコンポーネントの最上位で定義 ---
+    const navigate = useNavigate();
+
+    // State Hooks
+    const [salon, setSalon] = useState<Salon | null>(null);
+    const [services, setServices] = useState<Service[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
+    const [stepError, setStepError] = useState<string | null>(null);
+    const [selectedService, setSelectedService] = useState<Service | null>(null);
+    type Step = 'SERVICE' | 'DATE' | 'TIME' | 'DETAILS';
+    const [currentStep, setCurrentStep] = useState<Step>('SERVICE');
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+    const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
+    const [timeSlotsLoading, setTimeSlotsLoading] = useState<boolean>(false);
+    const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [customerName, setCustomerName] = useState<string>('');
+    const [customerPhone, setCustomerPhone] = useState<string>('');
+    const [customerEmail, setCustomerEmail] = useState<string>('');
+    const [submitting, setSubmitting] = useState<boolean>(false);
+
+    // Effect Hook for initial data fetching
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const salonResponse = await api.get<Salon[]>('/salons/');
+                if (salonResponse.data.length > 0) {
+                    const singleSalon = salonResponse.data[0];
+                    setSalon(singleSalon);
+                    const servicesResponse = await api.get<Service[]>(`/services/?salon=${singleSalon.id}`);
+                    setServices(servicesResponse.data);
+                } else {
+                    setError('サロン情報が見つかりませんでした。');
+                }
+            } catch (err) {
+                setError('初期情報の取得に失敗しました。');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchInitialData();
+    }, []);
+
+    // Callback Hooks
+    const handleSelectService = useCallback((service: Service) => {
+        setSelectedService(service);
+        setCurrentStep('DATE');
+        setSelectedDate(null);
+        setSelectedTime(null);
+        setAvailableTimeSlots([]);
+        setStepError(null);
+    }, []);
+
+    const handleDateSelect = useCallback(async (date: Date | null) => {
+        if (!selectedService) return;
+        if (!date) { // 修正点2: dateがnullの場合の処理を追加
+            setStepError("日付を選択してください。");
+            return;
+        }
+        setSelectedDate(date);
+        setTimeSlotsLoading(true);
+        setStepError(null);
+        setAvailableTimeSlots([]);
+
+        try {
+            const formattedDate = format(date, 'yyyy-MM-dd');
+            const response = await api.get<string[]>(`/availability/?date=${formattedDate}&service_id=${selectedService.id}`);
+
+            if (response.data.length > 0) {
+                setAvailableTimeSlots(response.data);
+                setCurrentStep('TIME');
+            } else {
+                setStepError('申し訳ありません。この日は予約が満席か、休業日です。');
+            }
+        } catch (err) {
+            setStepError('予約可能な時間の取得に失敗しました。');
+            console.error(err);
+        } finally {
+            setTimeSlotsLoading(false);
+        }
+    }, [selectedService]);
+
+    const handleTimeSelect = useCallback((time: string) => {
+        setSelectedTime(time);
+        setCurrentStep('DETAILS');
+    }, []);
+
+    const handleSubmit = useCallback(async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedDate || !selectedTime || !customerName || !customerEmail || !salon || !selectedService) {
+            alert('必須項目を全て入力してください。');
+            return;
+        }
+        if (submitting) return;
+
+        setSubmitting(true);
+        setError(null);
+
+        const finalDateTime = new Date(selectedDate);
+        const [hours, minutes] = selectedTime.split(':').map(Number);
+        finalDateTime.setHours(hours, minutes, 0, 0);
+
+        try {
+            const reservationData = { salon: salon.id, service: selectedService.id, start_time: format(finalDateTime, "yyyy-MM-dd'T'HH:mm:ss"), customer_name: customerName, customer_email: customerEmail, customer_phone: customerPhone };
+            const response = await api.post('/reservations/', reservationData);
+            navigate(`/reservation-complete/${response.data.reservation_number}`);
+        } catch (err) {
+            console.error("Failed to create reservation:", err);
+            if (axios.isAxiosError(err) && err.response) {
+                setError(`予約作成に失敗しました: ${JSON.stringify(err.response.data)}`);
+            } else {
+                setError('予約作成中に不明なエラーが発生しました。');
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    }, [customerEmail, customerName, customerPhone, navigate, salon, selectedDate, selectedService, selectedTime, submitting]);
+
+    const formatDuration = useCallback((minutes: number): string => {
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        if (h > 0) {
+            if (m === 30) return `${h}時間半`;
+            if (m === 0) return `${h}時間`;
+            return `${h}時間${m}分`;
+        }
+        return `${m}分`;
+    }, []);
+
+    // --- 2. 条件分岐による早期returnは、全てのフック定義の後に記述 ---
+    if (loading) return <div className="text-center p-10">情報を読み込み中...</div>;
+    if (error) return <div className="text-center p-10 text-red-500">エラー: {error}</div>;
+    if (!salon) return <div className="text-center p-10">サロン情報が見つかりません。</div>;
+
+    // --- 3. レンダリング ---
+    return (
+        <div className="container mx-auto p-4 sm:p-6 max-w-2xl">
+            <div className="bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Nail Momo</h2>
+
+                {/* --- ① サービス選択 --- */}
+                {currentStep === 'SERVICE' && (
+                    <div>
+                        <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 1. メニューを選択</h3>
+                        <div className="space-y-3 mb-8">
+                            {services.map(service => (
+                                <div key={service.id} onClick={() => handleSelectService(service)} className={`flex justify-between items-center p-4 border rounded-lg cursor-pointer transition-colors ${selectedService?.id === service.id ? 'bg-gray-200 border-gray-400' : 'bg-white border-gray-300 hover:bg-gray-100'}`}>
+                                    <div>
+                                        <p className="text-lg font-semibold">{service.name}</p>
+                                        <p className="text-sm text-gray-600">({formatDuration(service.duration_minutes)})</p>
+                                    </div>
+                                    <p className="text-lg font-bold">{parseInt(service.price).toLocaleString()}円</p>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-8 text-center">
+                            <Link to="/" className="text-blue-600 hover:underline">
+                                トップページに戻る
+                            </Link>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- ② 日付選択 --- */}
+                {currentStep === 'DATE' && selectedService && (
+                    <div className="mt-8 pt-6 border-t">
+                        <div className="p-2 mb-4 bg-gray-100 rounded-md">
+                            <p className="font-semibold text-gray-800">
+                                <span className="text-sm">選択中のメニュー:</span> {selectedService.name}</p>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 2. 日付を選択</h3>
+                            <DatePicker selected={selectedDate} onChange={handleDateSelect} minDate={new Date()} inline locale="ja" />
+                            {stepError && <p className="mt-4 text-red-500 font-semibold">{stepError}</p>}
+                        </div>
+                        <button onClick={() => setCurrentStep('SERVICE')} className="mt-4 text-blue-600 hover:underline">← サービスの選択に戻る</button>
+                    </div>
+                )}
+
+                {/* --- ③ 時間選択 --- */}
+                {currentStep === 'TIME' && selectedService && selectedDate && (
+                    <div className="mt-8 pt-6 border-t">
+                        <div className="p-2 mb-4 bg-gray-100 rounded-md">
+                            <p className="font-semibold">
+                                <span className="text-sm">メニュー:</span> {selectedService.name}</p>
+                            <p className="font-semibold">
+                                <span className="text-sm">日付:</span> {format(selectedDate, 'yyyy年MM月dd日')}</p>
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 3. 時間を選択して下さい</h3>
+                        {timeSlotsLoading ? <p className="text-center text-gray-600">利用可能な時間枠を読み込み中...</p> : availableTimeSlots.length === 0 ? <p className="text-red-600 text-center">この日付とサービスでは利用可能な時間枠がありません。</p> : (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {availableTimeSlots.map(time => (<button key={time} type="button" onClick={() => handleTimeSelect(time)} className="p-2 border rounded-md text-center hover:bg-blue-500 hover:text-white transition-colors">{time}</button>))}
+                            </div>
+                        )}
+                        <button onClick={() => setCurrentStep('DATE')} className="mt-4 text-blue-600 hover:underline">← 日付の選択に戻る</button>
+                    </div>
+                )}
+
+                {/* --- ④ 予約者情報入力 --- */}
+                {currentStep === 'DETAILS' && selectedService && selectedDate && selectedTime && (
+                    <div className="mt-8 pt-6 border-t">
+                        <div>
+                            <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 4. お客様情報を入力</h3>
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <div className='p-4 bg-gray-100 rounded-md space-y-1'>
+                                    <p>
+                                        <strong>サービス:</strong> {selectedService.name}</p>
+                                    <p>
+                                        <strong>日時:</strong> {`${format(selectedDate, 'yyyy年MM月dd日')} ${selectedTime}`}</p>
+                                </div>
+                                <div>
+                                    <label htmlFor="customer-name" className="block text-gray-700 font-semibold mb-1">お名前 <span className="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" id="customer-name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required className="w-full p-2 border border-gray-300 rounded-md" placeholder="山田 太郎" />
+                                </div>
+                                <div>
+                                    <label htmlFor="customer-email" className="block text-gray-700 font-semibold mb-1">メールアドレス <span className="text-red-500">*</span>
+                                    </label>
+                                    <input type="email" id="customer-email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} required className="w-full p-2 border border-gray-300 rounded-md" placeholder="your.email@example.com" />
+                                </div>
+                                <div>
+                                    <label htmlFor="customer-phone" className="block text-gray-700 font-semibold mb-1">電話番号 (任意)</label>
+                                    <input type="tel" id="customer-phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md" placeholder="090-XXXX-XXXX" />
+                                </div>
+                                {submitting && <p className="text-center text-blue-600">予約を送信中...</p>}
+                                {error && <p className="text-center text-red-500">{error}</p>}
+                                <button type="submit" disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 disabled:opacity-50">予約を確定する</button>
+                            </form>
+                            <button onClick={() => setCurrentStep('TIME')} className="mt-4 text-blue-600 hover:underline">← 時間の選択に戻る</button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default ServiceAndReservationPicker;

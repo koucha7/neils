@@ -30,23 +30,25 @@ services:
       - db                             # dbサービスが起動するのを待つ
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME} # DB接続情報
+      LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN}
+      LINE_USER_ID: ${LINE_USER_ID}
+      GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID}
  
   frontend:
     build:
-      context: ./frontend              # frontendディレクトリのDockerfileを使用
+      context: ./frontend
       dockerfile: Dockerfile
     container_name: momonail_frontend
-    command: npm run dev               # Vue.js/Reactの開発サーバー起動コマンド
+    command: npm run dev -- --host 0.0.0.0
     volumes:
-      - ./frontend:/app                # ホストのfrontendディレクトリをコンテナの/appにマウント
-      - /app/node_modules              # node_modulesはホストからマウントせず、コンテナ内で管理
+      - ./frontend:/app
+      - /app/node_modules # node_modulesをボリュームとしてマウントする（ホストとの同期を避けるため）
     ports:
-      - "3000:3000"                    # ホストの3000番ポートとコンテナの3000番ポートをマッピング (Vue:8000, React:3000が一般的。要調整)
+      - "5173:5173"
     depends_on:
-      - backend                        # 必要であれば、バックエンドの起動を待つ
+      - backend
     environment:
-      VITE_API_BASE_URL: http://localhost:8000 # フロントエンドからバックエンドAPIを叩くURL (Vue/Viteの場合)
-      # REACT_APP_API_BASE_URL: http://localhost:8000 # Reactの場合
+      VITE_API_BASE_URL: http://localhost:8000/api 
 
 volumes:
   db_data: # データベースのデータを保存するためのボリューム
