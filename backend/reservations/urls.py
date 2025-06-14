@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     SalonViewSet,
     ServiceViewSet,
+    StatisticsView,
     ReservationViewSet,
     WeeklyDefaultScheduleViewSet,
     DateScheduleViewSet,
@@ -34,6 +35,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('availability/', AvailabilityCheckAPIView.as_view(), name='availability-check'), # AvailabilityCheckAPIViewのパス
     path('health/', HealthCheckAPIView.as_view(), name='health_check'),
+    path('statistics/', StatisticsView.as_view(), name='statistics'),
     path('monthly-availability/', MonthlyAvailabilityCheckAPIView.as_view(), name='monthly-availability-check'), # ★この行を追加★
     path('notification-settings/', NotificationSettingAPIView.as_view(), name='notification-settings'), # NotificationSettingAPIViewのパス
 ]

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import axios from 'axios';
-import { Calendar, Users, Scissors, LogOut, Bell, Shield, PlusCircle, Edit, Trash2, Menu as MenuIcon, X } from 'lucide-react';
+import { Calendar, Users, Scissors, LogOut, Bell, Shield, PlusCircle, Edit, Trash2, Menu as MenuIcon, X, BarChart3 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { format, addDays } from 'date-fns';
 import { ja } from 'date-fns/locale/ja'; // ★修正: { ja } と名前付きインポートに
 import { registerLocale } from 'react-datepicker';
 import { useNavigate } from 'react-router-dom';
+import StatisticsPanel from './StatisticsPanel';
 
 registerLocale('ja', ja);
 
@@ -565,7 +566,7 @@ const AdminPanel: React.FC = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(() => {
         return localStorage.getItem('isLoggedIn') === 'true';
     });
-    const [page, setPage] = useState<'reservations' | 'schedule' | 'menu' | 'settings' | 'policy'>('reservations');
+    const [page, setPage] = useState<'reservations' | 'schedule' | 'menu' | 'settings' | 'policy' | 'statistics'>('reservations');
     const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
         return window.innerWidth >= 640;
     });
@@ -587,6 +588,7 @@ const AdminPanel: React.FC = () => {
             case 'menu': return <MenuManagement />;
             case 'settings': return <NotificationSettingsManagement />;
             case 'policy': return <CancellationPolicyManagement />;
+            case 'statistics': return <StatisticsPanel />;
             default: return <ReservationList />;
         }
     };
@@ -615,6 +617,7 @@ const AdminPanel: React.FC = () => {
                     <button onClick={() => { setPage('menu'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'menu' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Scissors className="mr-3" size={20} /> メニュー管理</button>
                     <button onClick={() => { setPage('settings'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'settings' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Bell className="mr-3" size={20} /> 通知設定</button>
                     <button onClick={() => { setPage('policy'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'policy' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Shield className="mr-3" size={20} /> キャンセルポリシー</button>
+                    <button onClick={() => { setPage('statistics'); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'statistics' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><BarChart3 className="mr-3" size={20} /> 統計</button>
                 </nav>
                 <div className="p-2 border-t border-gray-700">
                     {/* ログアウトボタンに関数を渡す */}

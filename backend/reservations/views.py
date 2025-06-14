@@ -3,19 +3,21 @@ from .serializers import NotificationSettingSerializer
 from datetime import datetime, time, timedelta
 from django.conf import settings
 from django.core.mail import send_mail
-from django.db.models import Q # ★追加: Qオブジェクトをインポート
+from django.db.models import Q, Sum, Count
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from google.auth.exceptions import GoogleAuthError
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 import os
 import requests
 import uuid
+
 
 from .models import (
     DateSchedule,
@@ -455,3 +457,47 @@ class HealthCheckAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         return Response({"status": "ok"}, status=status.HTTP_200_OK)
+    
+class StatisticsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        # --- 月別売上の集計 ---
+        # ステータスが 'confirmed' の予約のみを対象
+        sales_data = Reservation.objects.filter(status='confirmed') \
+            .annotate(month=TruncMonth('start_time')) \
+            .values('month') \
+            .annotate(total_sales=Sum('service__price')) \
+            .values('month', 'total_sales') \
+            .order_by('month')
+
+        # フロントエンドで扱いやすい形式に整形
+        monthly_sales = {
+            "labels": [data['month'].strftime('%Y-%m') for data in sales_data],
+            "data": [data['total_sales'] for data in sales_data]
+        }
+
+        # --- 人気サービスの集計 ---
+        service_ranking_data = Reservation.objects.filter(status='confirmed') \
+            .values('service__name') \
+            .annotate(count=Count('id')) \
+            .order_by('-count')[:5] # 上位5件
+
+        service_ranking = {
+            "labels": [item['service__name'] for item in service_ranking_data],
+            "data": [item['count'] for item in service_ranking_data]
+        }
+
+        # --- 予約ステータスの集計 ---
+        status_counts = Reservation.objects.values('status') \
+            .annotate(count=Count('id')) \
+            .order_by('status')
+
+        reservation_stats = {item['status']: item['count'] for item in status_counts}
+
+        # レスポンスとしてデータを返す
+        return Response({
+            'monthly_sales': monthly_sales,
+            'service_ranking': service_ranking,
+            'reservation_stats': reservation_stats,
+        })
