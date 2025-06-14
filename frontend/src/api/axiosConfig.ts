@@ -27,4 +27,31 @@ api.interceptors.request.use(
     }
 );
 
+api.interceptors.response.use(
+    // 正常な応答の場合は何もしない
+    (response) => {
+        return response;
+    },
+    // エラー応答の場合の処理
+    (error) => {
+        // 401エラー（認証エラー）の場合
+        if (error.response && error.response.status === 401) {
+            console.log("401 Unauthorized. Token may be expired. Redirecting to login.");
+            
+            // 保存されているトークンとログイン情報をクリア
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('isLoggedIn'); // AdminPanelのログイン状態もクリア
+
+            // ログインページにリダイレクト
+            // window.location.href を使うことで、React Routerの状態もリセットされる
+            if (window.location.pathname !== '/admin') {
+                window.location.href = '/admin';
+            }
+        }
+        // その他のエラーはそのまま次の処理に渡す
+        return Promise.reject(error);
+    }
+);
+
 export default api;
