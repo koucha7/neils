@@ -63,26 +63,6 @@ const ReservationCheck: React.FC = () => {
         }
     };
 
-    const handleCancel = async () => {
-        if (!reservation) return;
-
-        // ユーザーに最終確認
-        if (window.confirm('本当にこの予約をキャンセルしますか？\nこの操作は取り消せません。')) {
-            setLoading(true);
-            setError(null);
-            try {
-                // バックエンドのキャンセルAPIを呼び出す
-                await api.post(`/reservations/${reservation.reservation_number}/cancel/`);
-                // キャンセル完了ページに遷移
-                navigate('/cancellation-complete');
-            } catch (err) {
-                setError('キャンセル処理中にエラーが発生しました。時間をおいて再度お試しください。');
-                console.error(err);
-                setLoading(false);
-            }
-        }
-    };
-
     return (
         <div className="container mx-auto p-4 sm:p-6 max-w-2xl">
             <div className="bg-white rounded-lg shadow-md p-8">
