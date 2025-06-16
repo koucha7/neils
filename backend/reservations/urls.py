@@ -22,6 +22,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from django.conf.urls.i18n import i18n_patterns
 
 # 各APIエンドポイントをルーターに登録 (ViewSetを継承しているもののみ)
 router = DefaultRouter()
@@ -46,11 +47,15 @@ urlpatterns = [
     # ヘルスチェック用のパス
     path('health/', HealthCheckAPIView.as_view(), name='health_check'),
     path('admin/', admin.site.urls),
+    path('statistics/', StatisticsView.as_view(), name='statistics'),
+    path('admin/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'),
+]
+
+urlpatterns += i18n_patterns(
     path('api/', include('reservations.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('statistics/', StatisticsView.as_view(), name='statistics'),
-    path('admin/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'), # この行を追加
-]
+    prefix_default_language=False,
+)
 
 urlpatterns += router.urls # ルーターで登録されたViewSetのURLを追加
