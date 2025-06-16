@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'
 import api from '../api/axiosConfig';
 import axios from 'axios';
 import { Calendar, Users, Scissors, LogOut, Bell, Shield, PlusCircle, Edit, Trash2, Menu as MenuIcon, X, BarChart3 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { format, addDays } from 'date-fns';
-import { ja } from 'date-fns/locale/ja'; // ★修正: { ja } と名前付きインポートに
+import { ja } from 'date-fns/locale/ja'; 
 import { registerLocale } from 'react-datepicker';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; 
 import StatisticsPanel from './StatisticsPanel';
 
 registerLocale('ja', ja);
