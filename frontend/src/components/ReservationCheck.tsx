@@ -23,6 +23,13 @@ interface Reservation {
     };
 }
 
+const statusMap: { [key in Reservation['status']]: string } = {
+    pending: '予約確認中',
+    confirmed: '予約確定済み',
+    cancelled: 'キャンセル済み',
+    completed: '完了済み',
+};
+
 const ReservationCheck: React.FC = () => {
     const navigate = useNavigate();
     const [reservationNumberInput, setReservationNumberInput] = useState('');
@@ -105,7 +112,11 @@ const ReservationCheck: React.FC = () => {
                         <div className="space-y-2 text-gray-700">
                             <p><strong>予約番号:</strong> <span className="font-mono text-purple-800">{reservation.reservation_number}</span></p>
                             <p><strong>お名前:</strong> {reservation.customer_name}様</p>
-                            <p><strong>ステータス:</strong> {reservation.status}</p>
+                            <p><strong>ステータス:</strong> 
+                                <span className={`font-bold ${reservation.status === 'confirmed' ? 'text-green-600' : 'text-gray-800'}`}>
+                                    {statusMap[reservation.status]}
+                                </span>
+                            </p>
                             <p><strong>予約日時:</strong> {format(new Date(reservation.start_time), 'yyyy年MM月dd日 HH:mm')}〜</p>
                         </div>
                         <button
