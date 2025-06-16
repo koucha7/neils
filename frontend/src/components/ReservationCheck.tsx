@@ -1,7 +1,4 @@
-// frontend/src/components/ReservationCheck.tsx
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -31,7 +28,6 @@ const statusMap: { [key in Reservation['status']]: string } = {
 };
 
 const ReservationCheck: React.FC = () => {
-    const navigate = useNavigate();
     const [reservationNumberInput, setReservationNumberInput] = useState('');
     const [reservation, setReservation] = useState<Reservation | null>(null);
     const [loading, setLoading] = useState(false);
