@@ -13,6 +13,7 @@ import ReservationCheck from './components/ReservationCheck.tsx';
 import CancellationComplete from './components/CancellationComplete.tsx';
 import AdminPanel from './components/AdminPanel.tsx';
 import ReservationDetail from './components/ReservationDetail.tsx';
+import Manual from './components/Manual.tsx';
 
 // Not Foundページ用のシンプルなコンポーネント
 function NotFound() {
@@ -39,6 +40,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         {/* 管理者向け画面 */}
         <Route path="/admin" element={<AdminPanel />} />
         <Route path="/admin/reservations/:reservationNumber" element={<ReservationDetail />} />
+        <Route path="/manual" element={<Manual />} />
         {/* ★★★ ここから追加：他のどのルートにも一致しない場合に表示 ★★★ */}
         <Route path="*" element={<NotFound />} />
       </Routes>
