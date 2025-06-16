@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; // ★ Linkをインポート
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -11,7 +11,13 @@ import axios from 'axios';
 registerLocale('ja', ja);
 
 // --- 型定義 ---
-interface Salon { id: number; name: string; address: string; phone_number: string; }
+interface Salon {
+    id: number;
+    name: string;
+    address: string;
+    phone_number: string;
+    cancellation_deadline_days: number; // キャンセルポリシーの日数を追加
+}
 interface Service { id: number; salon: number; name: string; price: string; duration_minutes: number; }
 
 const ServiceAndReservationPicker: React.FC = () => {
@@ -25,7 +31,7 @@ const ServiceAndReservationPicker: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [stepError, setStepError] = useState<string | null>(null);
     const [selectedService, setSelectedService] = useState<Service | null>(null);
-    type Step = 'SERVICE' | 'DATE' | 'TIME' | 'DETAILS';
+    type Step = 'SERVICE' | 'DATE' | 'TIME' | 'DETAILS' | 'CONFIRMATION'; // ★ 確認ステップを追加
     const [currentStep, setCurrentStep] = useState<Step>('SERVICE');
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
@@ -102,10 +108,20 @@ const ServiceAndReservationPicker: React.FC = () => {
         setCurrentStep('DETAILS');
     }, []);
 
-    const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    // ★ 予約内容確認画面へ進む処理
+    const handleProceedToConfirmation = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!customerName || !customerEmail) {
+            alert('必須項目（お名前とメールアドレス）を入力してください。');
+            return;
+        }
+        setCurrentStep('CONFIRMATION');
+    };
+
+    // ★ 最終的な予約実行処理
+    const handleFinalSubmit = useCallback(async () => {
         if (!selectedDate || !selectedTime || !customerName || !customerEmail || !salon || !selectedService) {
-            alert('必須項目を全て入力してください。');
+            alert('必須項目が不足しています。');
             return;
         }
         if (submitting) return;
@@ -218,7 +234,7 @@ const ServiceAndReservationPicker: React.FC = () => {
                     <div className="mt-8 pt-6 border-t">
                         <div>
                             <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 4. お客様情報を入力</h3>
-                            <form onSubmit={handleSubmit} className="space-y-4">
+                            <form onSubmit={handleProceedToConfirmation} className="space-y-4">
                                 <div className='p-4 bg-gray-100 rounded-md space-y-1'>
                                     <p>
                                         <strong>サービス:</strong> {selectedService.name}</p>
@@ -244,6 +260,46 @@ const ServiceAndReservationPicker: React.FC = () => {
                                 <button type="submit" disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 disabled:opacity-50">予約を確定する</button>
                             </form>
                             <button onClick={() => setCurrentStep('TIME')} className="mt-4 text-blue-600 hover:underline">← 時間の選択に戻る</button>
+                        </div>
+                    </div>
+                )}
+
+                {/* --- ★ ⑤ 予約内容確認 --- */}
+                {currentStep === 'CONFIRMATION' && selectedService && selectedDate && selectedTime && (
+                    <div className="mt-8 pt-6 border-t">
+                        <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 5. ご予約内容の確認</h3>
+                        
+                        {/* キャンセルポリシー表示 */}
+                        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
+                            <h4 className="font-bold text-yellow-800">キャンセルポリシー</h4>
+                            <p className="text-sm text-yellow-700 mt-1">
+                                ご予約のキャンセルは、予約日の<strong>{salon.cancellation_deadline_days}日前</strong>まで可能です。
+                                これ以降のキャンセルは直接店舗にご連絡ください。
+                            </p>
+                        </div>
+                        
+                        {/* 予約内容 */}
+                        <div className="space-y-3 bg-gray-50 p-4 rounded-md">
+                            <div><strong className="w-28 inline-block">サービス:</strong> {selectedService.name}</div>
+                            <div><strong className="w-28 inline-block">料金:</strong> {parseInt(selectedService.price).toLocaleString()}円</div>
+                            <div><strong className="w-28 inline-block">日時:</strong> {`${format(selectedDate, 'yyyy年MM月dd日')} ${selectedTime}`}</div>
+                            <hr className="my-3"/>
+                            <div><strong className="w-28 inline-block">お名前:</strong> {customerName}</div>
+                            <div><strong className="w-28 inline-block">メール:</strong> {customerEmail}</div>
+                            <div><strong className="w-28 inline-block">電話番号:</strong> {customerPhone || '未入力'}</div>
+                        </div>
+
+                        {submitting && <p className="text-center text-blue-600 mt-4">予約を送信中...</p>}
+                        {error && <p className="text-center text-red-500 mt-4">{error}</p>}
+                        
+                        {/* アクションボタン */}
+                        <div className="mt-6 space-y-3">
+                            <button onClick={handleFinalSubmit} disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 disabled:opacity-50">
+                                この内容で予約する
+                            </button>
+                            <button onClick={() => setCurrentStep('DETAILS')} disabled={submitting} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition duration-300">
+                                入力内容を修正する
+                            </button>
                         </div>
                     </div>
                 )}
