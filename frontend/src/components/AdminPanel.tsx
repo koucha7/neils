@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import axios from 'axios';
-import { Calendar, Users, Scissors, Bell, Shield, PlusCircle, Edit, Trash2, Menu as MenuIcon, X, BarChart3 } from 'lucide-react';
+import { Calendar, Users, Scissors, LogOut, Bell, Shield, PlusCircle, Edit, Trash2, Menu as MenuIcon, X, BarChart3 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { format, addDays } from 'date-fns';
-import { ja } from 'date-fns/locale/ja'; 
+import { ja } from 'date-fns/locale/ja'; // ★修正: { ja } と名前付きインポートに
 import { registerLocale } from 'react-datepicker';
-import { useNavigate, Link } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom';
 import StatisticsPanel from './StatisticsPanel';
 
 registerLocale('ja', ja);
@@ -619,20 +619,10 @@ const AdminPanel: React.FC = () => {
                     <button onClick={() => { setPage('policy'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'policy' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Shield className="mr-3" size={20} /> キャンセルポリシー</button>
                     <button onClick={() => { setPage('statistics'); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'statistics' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><BarChart3 className="mr-3" size={20} /> 統計</button>
                 </nav>
-                <div className="flex items-center space-x-4">
-                    <Link
-                        to="/manual"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
-                    >
-                        マニュアル
-                    </Link>
-                    <button
-                        onClick={handleLogout}
-                        className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
-                    >
-                        ログアウト
+                <div className="p-2 border-t border-gray-700">
+                    {/* ログアウトボタンに関数を渡す */}
+                    <button onClick={handleLogout} className="w-full text-left flex items-center px-4 py-2 rounded-md hover:bg-gray-700">
+                        <LogOut className="mr-3" size={20} /> ログアウト
                     </button>
                 </div>
             </aside>
