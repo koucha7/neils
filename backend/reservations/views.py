@@ -1,6 +1,6 @@
 from .models import Service, Reservation, WeeklyDefaultSchedule, DateSchedule, NotificationSetting
 from .serializers import NotificationSettingSerializer
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, date
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db.models import Q, Sum, Count
@@ -519,17 +519,20 @@ class MonthlyScheduleAdminView(APIView):
         weekly_defaults = {wd.day_of_week: wd for wd in WeeklyDefaultSchedule.objects.all()}
 
         response_data = {}
-        # ★★★【バグ修正】calendarモジュールを使い、安全に月の日数を取得します
         num_days = calendar.monthrange(year, month)[1]
 
         for day_num in range(1, num_days + 1):
-            date = datetime.date(year, month, day_num)
-            date_str = date.strftime('%Y-%m-%d')
-            weekday = date.weekday()
+            # ★★★【バグ修正】★★★
+            # datetime.date(...) ではなく、インポートした date(...) を直接使う
+            # また、変数名が 'date' だとインポートしたものと衝突するため 'current_date' に変更
+            current_date = date(year, month, day_num)
+            
+            date_str = current_date.strftime('%Y-%m-%d')
+            weekday = current_date.weekday()
 
             schedule_info = {}
-            if date in schedules_map:
-                schedule = schedules_map[date]
+            if current_date in schedules_map:
+                schedule = schedules_map[current_date]
                 schedule_info['id'] = schedule.id
                 if schedule.is_closed:
                     schedule_info['status'] = 'HOLIDAY'
