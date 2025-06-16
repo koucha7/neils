@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 import os
 import requests
 import uuid
+import calendar
 
 
 from .models import (
@@ -504,7 +505,7 @@ class StatisticsView(APIView):
 
 class MonthlyScheduleAdminView(APIView):
     """
-    管理画面向けに、指定された月の各日付のスケジュール状態を返す。(修正版)
+    管理画面向けに、指定された月の各日付のスケジュール状態を返す。(最終修正版)
     """
     def get(self, request, *args, **kwargs):
         try:
@@ -515,35 +516,29 @@ class MonthlyScheduleAdminView(APIView):
 
         schedules_in_month = DateSchedule.objects.filter(date__year=year, date__month=month)
         schedules_map = {schedule.date: schedule for schedule in schedules_in_month}
-
         weekly_defaults = {wd.day_of_week: wd for wd in WeeklyDefaultSchedule.objects.all()}
 
         response_data = {}
-        # 月の始まりから終わりまでループ
-        num_days = (datetime.date(year, month % 12 + 1, 1) - datetime.timedelta(days=1)).day if month != 12 else 31
-        
+        # ★★★【バグ修正】calendarモジュールを使い、安全に月の日数を取得します
+        num_days = calendar.monthrange(year, month)[1]
+
         for day_num in range(1, num_days + 1):
             date = datetime.date(year, month, day_num)
             date_str = date.strftime('%Y-%m-%d')
-            weekday = date.weekday()  # 月曜日=0, 日曜日=6
+            weekday = date.weekday()
 
             schedule_info = {}
-
             if date in schedules_map:
                 schedule = schedules_map[date]
                 schedule_info['id'] = schedule.id
-                # ★修正点: is_closed を参照
                 if schedule.is_closed:
                     schedule_info['status'] = 'HOLIDAY'
                 else:
                     schedule_info['status'] = 'SPECIAL_WORKING'
-                    # ★修正点: 時間がNoneの場合のエラーを回避
                     schedule_info['start_time'] = schedule.opening_time.strftime('%H:%M') if schedule.opening_time else None
                     schedule_info['end_time'] = schedule.closing_time.strftime('%H:%M') if schedule.closing_time else None
             elif weekday in weekly_defaults:
                 default = weekly_defaults[weekday]
-                # ★★★【最重要修正点】★★★
-                # 誤: default.is_active -> 正: not default.is_closed
                 if not default.is_closed:
                     schedule_info['status'] = 'DEFAULT_WORKING'
                     schedule_info['start_time'] = default.opening_time.strftime('%H:%M') if default.opening_time else None
@@ -559,7 +554,7 @@ class MonthlyScheduleAdminView(APIView):
     
 class TimeSlotAPIView(APIView):
     """
-    指定された日付の営業時間から、30分単位の時間枠リストを返すAPI。
+    指定された日付の営業時間から、30分単位の時間枠リストを返すAPI。(修正版)
     """
     def get(self, request, *args, **kwargs):
         date_str = request.query_params.get('date')
@@ -571,29 +566,38 @@ class TimeSlotAPIView(APIView):
         except ValueError:
             return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 該当日の特別スケジュール（DateSchedule）を検索
         specific_schedule = DateSchedule.objects.filter(date=target_date).first()
-
-        schedule = None
+        
+        schedule_data = None
         if specific_schedule:
-            if specific_schedule.is_holiday:
-                return Response([], status=status.HTTP_200_OK) # 休日の場合は空リストを返す
-            schedule = {
-                'start_time': specific_schedule.start_time,
-                'end_time': specific_schedule.end_time
+            if specific_schedule.is_closed: # is_holiday ではなく is_closed を参照
+                return Response([], status=status.HTTP_200_OK) 
+            schedule_data = {
+                'opening_time': specific_schedule.opening_time,
+                'closing_time': specific_schedule.closing_time
             }
         else:
-            # なければ曜日からデフォルトスケジュールを検索
-            weekday = target_date.weekday() # 月曜日=0, 日曜日=6
-            default_schedule = WeeklyDefaultSchedule.objects.filter(weekday=weekday, is_active=True).first()
-            if default_schedule:
-                schedule = {
-                    'start_time': default_schedule.start_time,
-                    'end_time': default_schedule.end_time
+            weekday = target_date.weekday()
+            default_schedule = WeeklyDefaultSchedule.objects.filter(day_of_week=weekday).first()
+            # ★★★【バグ修正】 is_active=True ではなく not is_closed
+            if default_schedule and not default_schedule.is_closed:
+                schedule_data = {
+                    'opening_time': default_schedule.opening_time,
+                    'closing_time': default_schedule.closing_time
                 }
 
-        if not schedule:
-            return Response([], status=status.HTTP_200_OK) # スケジュールがなければ空リスト
+        if not schedule_data or not schedule_data['opening_time'] or not schedule_data['closing_time']:
+            return Response([], status=status.HTTP_200_OK)
+
+        time_slots = []
+        start_time = datetime.datetime.combine(target_date, schedule_data['opening_time'])
+        end_time = datetime.datetime.combine(target_date, schedule_data['closing_time'])
+        current_time = start_time
+        while current_time < end_time:
+            time_slots.append(current_time.strftime('%H:%M'))
+            current_time += datetime.timedelta(minutes=30)
+            
+        return Response(time_slots, status=status.HTTP_200_OK)
 
         # 30分単位の時間枠を生成
         time_slots = []
