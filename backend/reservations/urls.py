@@ -16,6 +16,7 @@ from .views import (
     TimeSlotAPIView,
     MonthlyScheduleAdminView
     )
+
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -40,8 +41,8 @@ urlpatterns = [
     path('statistics/', StatisticsView.as_view(), name='statistics'),
     path('monthly-availability/', MonthlyAvailabilityCheckAPIView.as_view(), name='monthly-availability-check'), # ★この行を追加★
     path('notification-settings/', NotificationSettingAPIView.as_view(), name='notification-settings'), # NotificationSettingAPIViewのパス
-    path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'), # この行を追加
     path('admin/monthly-schedules/', MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedules'),
+    path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'),
 ]
 
 urlpatterns += router.urls # ルーターで登録されたViewSetのURLを追加

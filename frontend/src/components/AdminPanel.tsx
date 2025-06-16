@@ -163,7 +163,12 @@ const AttendanceManagement: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await api.get('/api/admin/monthly-schedules/', { params: { year: date.getFullYear(), month: date.getMonth() + 1, }, });
+            const response = await api.get('admin/monthly-schedules/', {
+                params: {
+                    year: date.getFullYear(),
+                    month: date.getMonth() + 1,
+                },
+            });
             setMonthlySchedules(response.data);
         } catch (err) {
             setError('スケジュール情報の取得に失敗しました。');
