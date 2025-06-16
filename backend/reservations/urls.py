@@ -32,17 +32,23 @@ router.register(r'date-schedules', DateScheduleViewSet)
 # NotificationSettingAPIViewはAPIViewなので、ルーターには登録しない
 
 urlpatterns = [
+    path('', include(router.urls)), # ルーターで登録したURL (/salons, /services など)
+    
+    # APIViewを継承したクラスのパス
+    path('availability/', AvailabilityCheckAPIView.as_view(), name='availability-check'),
+    path('monthly-availability/', MonthlyAvailabilityCheckAPIView.as_view(), name='monthly-availability-check'),
+    path('notification-settings/', NotificationSettingAPIView.as_view(), name='notification-settings'),
+    path('statistics/', StatisticsView.as_view(), name='statistics'),
+    path('admin/monthly-schedules/', MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedules'),
+    path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'),
+    
+    # ヘルスチェック用のパス
+    path('health/', HealthCheckAPIView.as_view(), name='health_check'),
     path('admin/', admin.site.urls),
     path('api/', include('reservations.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('availability/', AvailabilityCheckAPIView.as_view(), name='availability-check'), # AvailabilityCheckAPIViewのパス
-    path('health/', HealthCheckAPIView.as_view(), name='health_check'),
     path('statistics/', StatisticsView.as_view(), name='statistics'),
-    path('monthly-availability/', MonthlyAvailabilityCheckAPIView.as_view(), name='monthly-availability-check'), # ★この行を追加★
-    path('notification-settings/', NotificationSettingAPIView.as_view(), name='notification-settings'), # NotificationSettingAPIViewのパス
-    path('admin/monthly-schedules/', MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedules'),
-    path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'),
 ]
 
 urlpatterns += router.urls # ルーターで登録されたViewSetのURLを追加
