@@ -14,6 +14,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 ROOT_URLCONF = 'momonail_backend_project.urls'
 
+LANGUAGE_CODE = 'ja'
+
 # DATABASE_URL 環境変数から読み込む
 DATABASES = {
     'default': dj_database_url.config(
