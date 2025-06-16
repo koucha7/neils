@@ -87,13 +87,13 @@ const ServiceAndReservationPicker: React.FC = () => {
 
         try {
             const formattedDate = format(date, 'yyyy-MM-dd');
-            const response = await api.get<string[]>(`/availability/?date=${formattedDate}&service_id=${selectedService.id}`);
+            const response = await api.get<string[]>(`/api/time-slots/?date=${formattedDate}`);
 
             if (response.data.length > 0) {
                 setAvailableTimeSlots(response.data);
                 setCurrentStep('TIME');
             } else {
-                setStepError('申し訳ありません。この日は予約が満席か、休業日です。');
+              setStepError('申し訳ありません。この日は受付可能な時間が設定されていません。');
             }
         } catch (err) {
             setStepError('予約可能な時間の取得に失敗しました。');

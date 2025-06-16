@@ -119,13 +119,6 @@ const ReservationCheck: React.FC = () => {
                             </p>
                             <p><strong>予約日時:</strong> {format(new Date(reservation.start_time), 'yyyy年MM月dd日 HH:mm')}〜</p>
                         </div>
-                        <button
-                            onClick={handleCancel}
-                            disabled={loading || reservation.status === 'cancelled' || reservation.status === 'completed'}
-                            className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md shadow-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {reservation.status === 'cancelled' ? 'キャンセル済み' : 'この予約をキャンセルする'}
-                        </button>
                     </div>
                 )}
             </div>

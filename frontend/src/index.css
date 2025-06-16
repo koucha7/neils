@@ -14,3 +14,32 @@ body {
 .react-datepicker-popper {
     z-index: 9999; /* 非常に高い値に設定して、常に手前に表示されるようにする */
 }
+
+.react-datepicker__day--special-working {
+  background-color: #a5d8ff; /* 青系の色: 特別営業時間 */
+  border-radius: 0.3rem;
+  color: #000;
+}
+.react-datepicker__day--holiday {
+  background-color: #ffacac; /* 赤系の色: 休日設定 */
+  border-radius: 0.3rem;
+  color: #000;
+}
+/* 曜日設定での休日の色（任意） */
+.react-datepicker__day--default-holiday {
+    color: #ccc;
+}
+
+/* ホバー時の色も調整するとより良くなります */
+.react-datepicker__day--special-working:hover {
+  background-color: #82c0ff;
+}
+.react-datepicker__day--holiday:hover {
+  background-color: #ff8a8a;
+}
+
+/* 選択された日付のスタイルが上書きされないように */
+.react-datepicker__day--selected {
+  background-color: #216ba5 !important;
+  color: white !important;
+}

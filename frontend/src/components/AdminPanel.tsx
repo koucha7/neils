@@ -18,6 +18,12 @@ interface Reservation { id: number; reservation_number: string; customer_name: s
 interface NotificationSettings { id: number; unconfirmed_reminder_enabled: boolean; unconfirmed_reminder_days_before: number; schedule_reminder_enabled: boolean; schedule_reminder_days_before: number; }
 interface WeeklySchedule { id: number; day_of_week: number; is_closed: boolean; opening_time: string | null; closing_time: string | null; }
 interface DateSchedule { id: number; date: string; is_closed: boolean; opening_time: string | null; closing_time: string | null; }
+interface ScheduleInfo {
+  id?: number;
+  status: 'HOLIDAY' | 'SPECIAL_WORKING' | 'DEFAULT_WORKING' | 'DEFAULT_HOLIDAY' | 'UNDEFINED';
+  start_time?: string;
+  end_time?: string;
+}
 
 // --- 各管理画面コンポーネント (AdminPanelの外で定義) ---
 
@@ -28,6 +34,9 @@ const MenuManagement: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [editingService, setEditingService] = useState<Partial<Service> | null>(null);
     const DURATION_CHOICES = [30, 60, 90, 120, 150, 180, 210, 240];
+    const [monthlySchedules, setMonthlySchedules] = useState<Record<string, ScheduleInfo>>({});
+    const [selectedDateForModal, setSelectedDateForModal] = useState<Date | null>(null);
+
 
     const fetchServices = useCallback(async () => {
         setLoading(true);
@@ -143,91 +152,177 @@ const MenuManagement: React.FC = () => {
 };
 
 // 2. 休日・営業時間管理
-const ScheduleManagement: React.FC = () => {
-    const [view, setView] = useState<'weekly' | 'date'>('weekly');
-    const [weeklySchedules, setWeeklySchedules] = useState<WeeklySchedule[]>([]);
-    const [dateSchedules, setDateSchedules] = useState<DateSchedule[]>([]);
-    const [loading, setLoading] = useState(true);
-    const dayMap = ["月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"];
+const AttendanceManagement: React.FC = () => {
+  // --- State定義 ---
+  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()); 
+  const [monthlySchedules, setMonthlySchedules] = useState<Record<string, ScheduleInfo>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [weeklyRes, dateRes] = await Promise.all([api.get('/weekly-schedules/'), api.get('/date-schedules/')]);
-            setWeeklySchedules(weeklyRes.data.sort((a: WeeklySchedule, b: WeeklySchedule) => a.day_of_week - b.day_of_week));
-            setDateSchedules(dateRes.data);
-        } catch (error) { console.error("スケジュールの読み込みに失敗", error); } finally { setLoading(false); }
-    }, []);
+  // --- モーダル関連のState ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<{ date: Date; info: ScheduleInfo | null }>({ date: new Date(), info: null });
+  const [modalStatus, setModalStatus] = useState<'working' | 'holiday'>('working');
+  const [modalStartTime, setModalStartTime] = useState('10:00');
+  const [modalEndTime, setModalEndTime] = useState('19:00');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+  // --- データ取得 ---
+  const fetchMonthlySchedules = useCallback(async (date: Date) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get('/api/admin/monthly-schedules/', {
+        params: {
+          year: date.getFullYear(),
+          month: date.getMonth() + 1,
+        },
+      });
+      setMonthlySchedules(response.data);
+    } catch (err) {
+      setError('スケジュール情報の取得に失敗しました。');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    const handleWeeklyUpdate = async (schedule: WeeklySchedule) => { try { await api.patch(`/weekly-schedules/${schedule.id}/`, schedule); alert('更新しました'); } catch (error) { alert('更新に失敗しました'); } };
-    const handleDateAdd = async (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-        const newSchedule = { salon: 1, date: formData.get('date'), is_closed: formData.get('is_closed') === 'on', opening_time: formData.get('opening_time') || null, closing_time: formData.get('closing_time') || null };
-        try {
-            await api.post('/date-schedules/', newSchedule);
-            fetchData();
-            event.currentTarget.reset();
-        } catch (err) {
-            if (axios.isAxiosError(err) && err.response) { alert(err.response.data.error || '追加に失敗しました。'); } else { alert('追加中に不明なエラーが発生しました。'); }
-        }
+  useEffect(() => {
+    fetchMonthlySchedules(currentDisplayDate);
+  }, [currentDisplayDate, fetchMonthlySchedules]);
+
+  // --- UIイベントハンドラ ---
+  const handleDateClick = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const scheduleInfo = monthlySchedules[dateStr] || null;
+    
+    setSelectedSchedule({ date, info: scheduleInfo });
+
+    if (scheduleInfo?.status === 'HOLIDAY') {
+      setModalStatus('holiday');
+    } else {
+      setModalStatus('working');
+      const startTime = scheduleInfo?.start_time || '10:00';
+      const endTime = scheduleInfo?.end_time || '19:00';
+      setModalStartTime(startTime);
+      setModalEndTime(endTime);
+    }
+    setIsModalOpen(true);
+  };
+
+  const getDayClassName = (date: Date): string => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const schedule = monthlySchedules[dateStr];
+    if (!schedule) return '';
+    if (schedule.status === 'HOLIDAY') return 'react-datepicker__day--holiday';
+    if (schedule.status === 'SPECIAL_WORKING') return 'react-datepicker__day--special-working';
+    if (schedule.status === 'DEFAULT_HOLIDAY') return 'react-datepicker__day--default-holiday';
+    return '';
+  };
+
+  // --- モーダル内の操作 ---
+  const handleSaveSchedule = async () => {
+    setIsSubmitting(true);
+    const dateStr = format(selectedSchedule.date, 'yyyy-MM-dd');
+    const scheduleId = selectedSchedule.info?.id;
+
+    // salon: 1 は仮の値です。環境に合わせて調整が必要な場合があります。
+    const requestData = {
+      salon: 1, 
+      date: dateStr,
+      is_holiday: modalStatus === 'holiday',
+      start_time: modalStatus === 'working' ? modalStartTime : '09:00',
+      end_time: modalStatus === 'working' ? modalEndTime : '17:00',
     };
 
-    const handleDateDelete = async (id: number) => { if (!window.confirm("この特別スケジュールを削除しますか？")) return; try { await api.delete(`/date-schedules/${id}/`); fetchData(); } catch (error) { alert('削除に失敗しました'); } };
+    try {
+      if (scheduleId) {
+        await api.put(`/date-schedules/${scheduleId}/`, requestData);
+      } else {
+        await api.post('/date-schedules/', requestData);
+      }
+      await fetchMonthlySchedules(currentDisplayDate);
+      setIsModalOpen(false);
+    } catch (err) {
+      alert('設定の保存に失敗しました。');
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    if (loading) return <p>読み込み中...</p>;
+  const handleDeleteSchedule = async () => {
+    const scheduleId = selectedSchedule.info?.id;
+    if (!scheduleId || !window.confirm('この日の特別設定を削除しますか？')) return;
+    
+    setIsSubmitting(true);
+    try {
+      await api.delete(`/date-schedules/${scheduleId}/`);
+      await fetchMonthlySchedules(currentDisplayDate);
+      setIsModalOpen(false);
+    } catch (err) {
+      alert('設定の削除に失敗しました。');
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    return (
-        <div>
-            <h2 className="text-2xl font-bold mb-4">休日・営業時間管理</h2>
-            <div className="flex border-b mb-6">
-                <button onClick={() => setView('weekly')} className={`py-2 px-4 ${view === 'weekly' ? 'border-b-2 border-blue-500 font-semibold' : 'text-gray-500'}`}>基本スケジュール</button>
-                <button onClick={() => setView('date')} className={`py-2 px-4 ${view === 'date' ? 'border-b-2 border-blue-500 font-semibold' : 'text-gray-500'}`}>特別スケジュール</button>
-            </div>
-            {view === 'weekly' && (<div className="space-y-4">{weeklySchedules.map((day, index) => (<div key={day.id} className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between">
-                <span className="font-semibold w-20">{dayMap[day.day_of_week]}</span>
-                <div className="flex items-center space-x-4">
-                    <label className="flex items-center">
-                        <input type="checkbox" checked={day.is_closed} onChange={e => { const newSchedules = [...weeklySchedules]; newSchedules[index].is_closed = e.target.checked; setWeeklySchedules(newSchedules); }} className="h-5 w-5 rounded" /> <span className="ml-2">休業日</span>
-                    </label>
-                    <div className={day.is_closed ? 'opacity-50' : ''}>
-                        <input type="time" disabled={day.is_closed} value={day.opening_time || ''} onChange={e => { const newSchedules = [...weeklySchedules]; newSchedules[index].opening_time = e.target.value; setWeeklySchedules(newSchedules); }} className="p-1 border rounded" />
-                        <span className="mx-2">〜</span>
-                        <input type="time" disabled={day.is_closed} value={day.closing_time || ''} onChange={e => { const newSchedules = [...weeklySchedules]; newSchedules[index].closing_time = e.target.value; setWeeklySchedules(newSchedules); }} className="p-1 border rounded" />
-                    </div>
-                </div>
-                <button onClick={() => handleWeeklyUpdate(day)} className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600">保存</button>
-            </div>))}</div>)}
-            {view === 'date' && (<div>
-                <form onSubmit={handleDateAdd} className="bg-white p-4 rounded-lg shadow-sm mb-6 grid grid-cols-5 gap-4 items-end">
-                    <div className="col-span-2">
-                        <label className="block text-sm">日付</label>
-                        <input name="date" type="date" required className="w-full p-2 border rounded" />
-                    </div>
-                    <div>
-                        <label className="block text-sm">開店時間</label>
-                        <input name="opening_time" type="time" className="w-full p-2 border rounded" />
-                    </div>
-                    <div>
-                        <label className="block text-sm">閉店時間</label>
-                        <input name="closing_time" type="time" className="w-full p-2 border rounded" />
-                    </div>
-                    <div className="flex flex-col items-center">
-                        <label>
-                            <input name="is_closed" type="checkbox" className="mr-2" />休業日</label>
-                        <button type="submit" className="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mt-1">追加</button>
-                    </div>
-                </form>
-                <div className="bg-white p-4 rounded-lg shadow-sm">{dateSchedules.map(d => (<div key={d.id} className="flex justify-between items-center p-2 border-b">
-                    <span>{d.date}</span>
-                    <span>{d.is_closed ? '休業日' : `${d.opening_time || ''} - ${d.closing_time || ''}`}</span>
-                    <button onClick={() => handleDateDelete(d.id)} className="text-red-500 hover:text-red-700">削除</button>
-                </div>))}</div>
-            </div>)}
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-4">勤怠設定</h2>
+      <div className="bg-white p-4 rounded-lg shadow-md">
+        <p className="text-gray-600 mb-4">カレンダーの日付をクリックして、その日の勤怠（特別営業時間または休日）を設定します。</p>
+        <div className="flex justify-center">
+            {loading ? <p>カレンダーを読み込み中...</p> : 
+             error ? <p className="text-red-500">{error}</p> : (
+                <DatePicker
+                    selected={null}
+                    onChange={handleDateClick}
+                    onMonthChange={(date) => setCurrentDisplayDate(date)}
+                    inline
+                    locale="ja"
+                    dayClassName={getDayClassName}
+                />
+            )}
         </div>
-    );
+      </div>
+      
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h4 className="text-lg font-bold mb-4">
+              {format(selectedSchedule.date, 'yyyy年 M月 d日')} の設定
+            </h4>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">種別</label>
+              <div className="flex gap-4">
+                <label className="flex items-center"><input type="radio" value="working" checked={modalStatus === 'working'} onChange={() => setModalStatus('working')} className="form-radio" /><span className="ml-2">出勤</span></label>
+                <label className="flex items-center"><input type="radio" value="holiday" checked={modalStatus === 'holiday'} onChange={() => setModalStatus('holiday')} className="form-radio" /><span className="ml-2">休日</span></label>
+              </div>
+            </div>
+            {modalStatus === 'working' && (
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label htmlFor="start-time" className="block text-sm font-medium text-gray-700">開始時刻</label>
+                  <input type="time" id="start-time" value={modalStartTime} onChange={(e) => setModalStartTime(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
+                </div>
+                <div>
+                  <label htmlFor="end-time" className="block text-sm font-medium text-gray-700">終了時刻</label>
+                  <input type="time" id="end-time" value={modalEndTime} onChange={(e) => setModalEndTime(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <button onClick={handleSaveSchedule} disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md disabled:bg-blue-300">{isSubmitting ? '保存中...' : 'この内容で保存'}</button>
+              {selectedSchedule.info?.id && (<button onClick={handleDeleteSchedule} disabled={isSubmitting} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md disabled:bg-red-300">設定を削除</button>)}
+              <button onClick={() => setIsModalOpen(false)} disabled={isSubmitting} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md mt-2">キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 // 3. 予約一覧
@@ -584,7 +679,7 @@ const AdminPanel: React.FC = () => {
     const renderPage = () => {
         switch (page) {
             case 'reservations': return <ReservationList />;
-            case 'schedule': return <ScheduleManagement />;
+            case 'schedule': return <AttendanceManagement />;
             case 'menu': return <MenuManagement />;
             case 'settings': return <NotificationSettingsManagement />;
             case 'policy': return <CancellationPolicyManagement />;
@@ -613,7 +708,7 @@ const AdminPanel: React.FC = () => {
                 <div className="p-4 text-2xl font-bold border-b border-gray-700">NailMomo</div>
                 <nav className="flex-1 p-2 space-y-1">
                     <button onClick={() => { setPage('reservations'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'reservations' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Users className="mr-3" size={20} /> 予約確認</button>
-                    <button onClick={() => { setPage('schedule'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'schedule' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Calendar className="mr-3" size={20} /> 休日管理</button>
+                    <button onClick={() => { setPage('schedule'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'schedule' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Calendar className="mr-3" size={20} /> 勤怠設定</button>
                     <button onClick={() => { setPage('menu'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'menu' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Scissors className="mr-3" size={20} /> メニュー管理</button>
                     <button onClick={() => { setPage('settings'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'settings' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Bell className="mr-3" size={20} /> 通知設定</button>
                     <button onClick={() => { setPage('policy'); setIsSidebarOpen(false); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'policy' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><Shield className="mr-3" size={20} /> キャンセルポリシー</button>
