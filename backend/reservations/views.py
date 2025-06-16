@@ -504,61 +504,58 @@ class StatisticsView(APIView):
 
 class MonthlyScheduleAdminView(APIView):
     """
-    管理画面向けに、指定された月の各日付のスケジュール状態を返す。
+    管理画面向けに、指定された月の各日付のスケジュール状態を返す。(修正版)
     """
     def get(self, request, *args, **kwargs):
         try:
             year = int(request.query_params.get('year'))
             month = int(request.query_params.get('month'))
         except (TypeError, ValueError):
-            return Response({'error': 'Year and month parameters are required and must be integers.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Year and month parameters are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # その月のDateScheduleをすべて取得
         schedules_in_month = DateSchedule.objects.filter(date__year=year, date__month=month)
-        schedules_map = {schedule.date.day: schedule for schedule in schedules_in_month}
+        schedules_map = {schedule.date: schedule for schedule in schedules_in_month}
 
-        # 曜日のデフォルト設定を取得
-        weekly_defaults = {wd.weekday: wd for wd in WeeklyDefaultSchedule.objects.all()}
+        weekly_defaults = {wd.day_of_week: wd for wd in WeeklyDefaultSchedule.objects.all()}
 
-        # 月の最初の日と最後の日を取得
-        first_day = datetime.date(year, month, 1)
-        last_day = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1) if month < 12 else datetime.date(year, 12, 31)
-        
-        days_in_month = (last_day - first_day).days + 1
-        
         response_data = {}
-        for day_num in range(1, days_in_month + 1):
+        # 月の始まりから終わりまでループ
+        num_days = (datetime.date(year, month % 12 + 1, 1) - datetime.timedelta(days=1)).day if month != 12 else 31
+        
+        for day_num in range(1, num_days + 1):
             date = datetime.date(year, month, day_num)
             date_str = date.strftime('%Y-%m-%d')
-            weekday = date.weekday() # 月曜日=0, 日曜日=6
+            weekday = date.weekday()  # 月曜日=0, 日曜日=6
 
             schedule_info = {}
-            
-            # DateSchedule（特別設定）が存在するかチェック
-            if day_num in schedules_map:
-                schedule = schedules_map[day_num]
+
+            if date in schedules_map:
+                schedule = schedules_map[date]
                 schedule_info['id'] = schedule.id
-                if schedule.is_holiday:
-                    schedule_info['status'] = 'HOLIDAY' # 休日
+                # ★修正点: is_closed を参照
+                if schedule.is_closed:
+                    schedule_info['status'] = 'HOLIDAY'
                 else:
-                    schedule_info['status'] = 'SPECIAL_WORKING' # 特別営業時間
-                    schedule_info['start_time'] = schedule.start_time.strftime('%H:%M')
-                    schedule_info['end_time'] = schedule.end_time.strftime('%H:%M')
-            # WeeklyDefaultSchedule（デフォルト設定）を参照
+                    schedule_info['status'] = 'SPECIAL_WORKING'
+                    # ★修正点: 時間がNoneの場合のエラーを回避
+                    schedule_info['start_time'] = schedule.opening_time.strftime('%H:%M') if schedule.opening_time else None
+                    schedule_info['end_time'] = schedule.closing_time.strftime('%H:%M') if schedule.closing_time else None
             elif weekday in weekly_defaults:
                 default = weekly_defaults[weekday]
-                if default.is_active:
-                    schedule_info['status'] = 'DEFAULT_WORKING' # 通常出勤
-                    schedule_info['start_time'] = default.start_time.strftime('%H:%M')
-                    schedule_info['end_time'] = default.end_time.strftime('%H:%M')
+                # ★★★【最重要修正点】★★★
+                # 誤: default.is_active -> 正: not default.is_closed
+                if not default.is_closed:
+                    schedule_info['status'] = 'DEFAULT_WORKING'
+                    schedule_info['start_time'] = default.opening_time.strftime('%H:%M') if default.opening_time else None
+                    schedule_info['end_time'] = default.closing_time.strftime('%H:%M') if default.closing_time else None
                 else:
-                    schedule_info['status'] = 'DEFAULT_HOLIDAY' # 通常休日
+                    schedule_info['status'] = 'DEFAULT_HOLIDAY'
             else:
-                 schedule_info['status'] = 'UNDEFINED' # 設定なし
-
+                schedule_info['status'] = 'UNDEFINED'
+            
             response_data[date_str] = schedule_info
 
-        return Response(response_data)
+        return Response(response_data, status=status.HTTP_200_OK)
     
 class TimeSlotAPIView(APIView):
     """
