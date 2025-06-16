@@ -620,6 +620,14 @@ const AdminPanel: React.FC = () => {
                     <button onClick={() => { setPage('statistics'); }} className={`w-full text-left flex items-center px-4 py-2 rounded-md ${page === 'statistics' ? 'bg-gray-700' : 'hover:bg-gray-700'}`}><BarChart3 className="mr-3" size={20} /> 統計</button>
                 </nav>
                 <div className="p-2 border-t border-gray-700">
+                    <Link
+                        to="/manual"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200"
+                    >
+                        マニュアル
+                    </Link>
                     {/* ログアウトボタンに関数を渡す */}
                     <button onClick={handleLogout} className="w-full text-left flex items-center px-4 py-2 rounded-md hover:bg-gray-700">
                         <LogOut className="mr-3" size={20} /> ログアウト

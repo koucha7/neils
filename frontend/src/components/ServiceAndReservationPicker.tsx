@@ -1,311 +1,124 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import api from '../api/axiosConfig';
-import DatePicker, { registerLocale } from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
-import { format } from 'date-fns';
-import { ja } from 'date-fns/locale/ja';
-import axios from 'axios';
+import React from 'react';
+import { Link } from 'react-router-dom';
 
-// react-datepickerを日本語化
-registerLocale('ja', ja);
-
-// --- 型定義 ---
-interface Salon {
-    id: number;
-    name: string;
-    address: string;
-    phone_number: string;
-    cancellation_deadline_days: number; // キャンセルポリシーの日数を追加
-}
-interface Service { id: number; salon: number; name: string; price: string; duration_minutes: number; }
-
-const ServiceAndReservationPicker: React.FC = () => {
-    // --- 1. 全てのフックをコンポーネントの最上位で定義 ---
-    const navigate = useNavigate();
-
-    // State Hooks
-    const [salon, setSalon] = useState<Salon | null>(null);
-    const [services, setServices] = useState<Service[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
-    const [stepError, setStepError] = useState<string | null>(null);
-    const [selectedService, setSelectedService] = useState<Service | null>(null);
-    type Step = 'SERVICE' | 'DATE' | 'TIME' | 'DETAILS' | 'CONFIRMATION'; // ★ 確認ステップを追加
-    const [currentStep, setCurrentStep] = useState<Step>('SERVICE');
-    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>([]);
-    const [timeSlotsLoading, setTimeSlotsLoading] = useState<boolean>(false);
-    const [selectedTime, setSelectedTime] = useState<string | null>(null);
-    const [customerName, setCustomerName] = useState<string>('');
-    const [customerPhone, setCustomerPhone] = useState<string>('');
-    const [customerEmail, setCustomerEmail] = useState<string>('');
-    const [submitting, setSubmitting] = useState<boolean>(false);
-
-    // Effect Hook for initial data fetching
-    useEffect(() => {
-        const fetchInitialData = async () => {
-            try {
-                const salonResponse = await api.get<Salon[]>('/salons/');
-                if (salonResponse.data.length > 0) {
-                    const singleSalon = salonResponse.data[0];
-                    setSalon(singleSalon);
-                    const servicesResponse = await api.get<Service[]>(`/services/?salon=${singleSalon.id}`);
-                    setServices(servicesResponse.data);
-                } else {
-                    setError('サロン情報が見つかりませんでした。');
-                }
-            } catch (err) {
-                setError('初期情報の取得に失敗しました。');
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchInitialData();
-    }, []);
-
-    // Callback Hooks
-    const handleSelectService = useCallback((service: Service) => {
-        setSelectedService(service);
-        setCurrentStep('DATE');
-        setSelectedDate(null);
-        setSelectedTime(null);
-        setAvailableTimeSlots([]);
-        setStepError(null);
-    }, []);
-
-    const handleDateSelect = useCallback(async (date: Date | null) => {
-        if (!selectedService) return;
-        if (!date) { // 修正点2: dateがnullの場合の処理を追加
-            setStepError("日付を選択してください。");
-            return;
-        }
-        setSelectedDate(date);
-        setTimeSlotsLoading(true);
-        setStepError(null);
-        setAvailableTimeSlots([]);
-
-        try {
-            const formattedDate = format(date, 'yyyy-MM-dd');
-            const response = await api.get<string[]>(`/availability/?date=${formattedDate}&service_id=${selectedService.id}`);
-
-            if (response.data.length > 0) {
-                setAvailableTimeSlots(response.data);
-                setCurrentStep('TIME');
-            } else {
-                setStepError('申し訳ありません。この日は予約が満席か、休業日です。');
-            }
-        } catch (err) {
-            setStepError('予約可能な時間の取得に失敗しました。');
-            console.error(err);
-        } finally {
-            setTimeSlotsLoading(false);
-        }
-    }, [selectedService]);
-
-    const handleTimeSelect = useCallback((time: string) => {
-        setSelectedTime(time);
-        setCurrentStep('DETAILS');
-    }, []);
-
-    // ★ 予約内容確認画面へ進む処理
-    const handleProceedToConfirmation = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!customerName || !customerEmail) {
-            alert('必須項目（お名前とメールアドレス）を入力してください。');
-            return;
-        }
-        setCurrentStep('CONFIRMATION');
-    };
-
-    // ★ 最終的な予約実行処理
-    const handleFinalSubmit = useCallback(async () => {
-        if (!selectedDate || !selectedTime || !customerName || !customerEmail || !salon || !selectedService) {
-            alert('必須項目が不足しています。');
-            return;
-        }
-        if (submitting) return;
-
-        setSubmitting(true);
-        setError(null);
-
-        const finalDateTime = new Date(selectedDate);
-        const [hours, minutes] = selectedTime.split(':').map(Number);
-        finalDateTime.setHours(hours, minutes, 0, 0);
-
-        try {
-            const reservationData = { salon: salon.id, service: selectedService.id, start_time: format(finalDateTime, "yyyy-MM-dd'T'HH:mm:ss"), customer_name: customerName, customer_email: customerEmail, customer_phone: customerPhone };
-            const response = await api.post('/reservations/', reservationData);
-            navigate(`/reservation-complete/${response.data.reservation_number}`);
-        } catch (err) {
-            console.error("Failed to create reservation:", err);
-            if (axios.isAxiosError(err) && err.response) {
-                setError(`予約作成に失敗しました: ${JSON.stringify(err.response.data)}`);
-            } else {
-                setError('予約作成中に不明なエラーが発生しました。');
-            }
-        } finally {
-            setSubmitting(false);
-        }
-    }, [customerEmail, customerName, customerPhone, navigate, salon, selectedDate, selectedService, selectedTime, submitting]);
-
-    const formatDuration = useCallback((minutes: number): string => {
-        const h = Math.floor(minutes / 60);
-        const m = minutes % 60;
-        if (h > 0) {
-            if (m === 30) return `${h}時間半`;
-            if (m === 0) return `${h}時間`;
-            return `${h}時間${m}分`;
-        }
-        return `${m}分`;
-    }, []);
-
-    // --- 2. 条件分岐による早期returnは、全てのフック定義の後に記述 ---
-    if (loading) return <div className="text-center p-10">情報を読み込み中...</div>;
-    if (error) return <div className="text-center p-10 text-red-500">エラー: {error}</div>;
-    if (!salon) return <div className="text-center p-10">サロン情報が見つかりません。</div>;
-
-    // --- 3. レンダリング ---
+const Manual: React.FC = () => {
     return (
-        <div className="container mx-auto p-4 sm:p-6 max-w-2xl">
-            <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Nail Momo</h2>
+        <div className="container mx-auto p-4 sm:p-6 max-w-4xl bg-white rounded-lg shadow-md my-8">
+            <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center border-b pb-4">操作マニュアル</h1>
 
-                {/* --- ① サービス選択 --- */}
-                {currentStep === 'SERVICE' && (
+            {/* お客様向けマニュアル */}
+            <section className="mb-12">
+                <h2 className="text-2xl font-bold text-gray-700 mb-4">■ お客様向けマニュアル</h2>
+
+                <div className="space-y-6">
+                    {/* 予約方法 */}
                     <div>
-                        <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 1. メニューを選択</h3>
-                        <div className="space-y-3 mb-8">
-                            {services.map(service => (
-                                <div key={service.id} onClick={() => handleSelectService(service)} className={`flex justify-between items-center p-4 border rounded-lg cursor-pointer transition-colors ${selectedService?.id === service.id ? 'bg-gray-200 border-gray-400' : 'bg-white border-gray-300 hover:bg-gray-100'}`}>
-                                    <div>
-                                        <p className="text-lg font-semibold">{service.name}</p>
-                                        <p className="text-sm text-gray-600">({formatDuration(service.duration_minutes)})</p>
-                                    </div>
-                                    <p className="text-lg font-bold">{parseInt(service.price).toLocaleString()}円</p>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="mt-8 text-center">
-                            <Link to="/" className="text-blue-600 hover:underline">
-                                トップページに戻る
-                            </Link>
-                        </div>
+                        <h3 className="text-xl font-semibold text-blue-600 mb-3">1. ご予約の方法</h3>
+                        <ol className="list-decimal list-inside space-y-3 bg-gray-50 p-4 rounded-lg">
+                            <li>
+                                <strong>メニューの選択:</strong>
+                                <p className="ml-4 text-gray-600">トップページに表示されているメニューリストから、ご希望のサービスを選択します。</p>
+                            </li>
+                            <li>
+                                <strong>日付の選択:</strong>
+                                <p className="ml-4 text-gray-600">カレンダーが表示されますので、ご希望の予約日を選択してください。</p>
+                            </li>
+                            <li>
+                                <strong>時間の選択:</strong>
+                                <p className="ml-4 text-gray-600">選択した日付で予約可能な時間帯が一覧表示されます。ご希望の時間を選択します。</p>
+                            </li>
+                            <li>
+                                <strong>お客様情報の入力:</strong>
+                                <p className="ml-4 text-gray-600">お名前、メールアドレス、電話番号（任意）を入力します。</p>
+                            </li>
+                            <li>
+                                <strong>予約内容の確認:</strong>
+                                <p className="ml-4 text-gray-600">入力内容と予約サービス、日時、キャンセルポリシーが表示されます。内容に間違いがないかご確認ください。</p>
+                            </li>
+                            <li>
+                                <strong>予約の確定:</strong>
+                                <p className="ml-4 text-gray-600">「この内容で予約する」ボタンを押すと予約が完了します。予約番号が記載された完了画面が表示され、確認メールが自動送信されます。</p>
+                            </li>
+                        </ol>
                     </div>
-                )}
 
-                {/* --- ② 日付選択 --- */}
-                {currentStep === 'DATE' && selectedService && (
-                    <div className="mt-8 pt-6 border-t">
-                        <div className="p-2 mb-4 bg-gray-100 rounded-md">
-                            <p className="font-semibold text-gray-800">
-                                <span className="text-sm">選択中のメニュー:</span> {selectedService.name}</p>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 2. 日付を選択</h3>
-                            <DatePicker selected={selectedDate} onChange={handleDateSelect} minDate={new Date()} inline locale="ja" />
-                            {stepError && <p className="mt-4 text-red-500 font-semibold">{stepError}</p>}
-                        </div>
-                        <button onClick={() => setCurrentStep('SERVICE')} className="mt-4 text-blue-600 hover:underline">← サービスの選択に戻る</button>
+                    {/* 予約の確認・キャンセル方法 */}
+                    <div>
+                        <h3 className="text-xl font-semibold text-blue-600 mb-3">2. ご予約の確認・キャンセル</h3>
+                        <ol className="list-decimal list-inside space-y-3 bg-gray-50 p-4 rounded-lg">
+                            <li>
+                                <strong>予約確認ページへアクセス:</strong>
+                                <p className="ml-4 text-gray-600">メニューの「<Link to="/check-reservation" className="text-blue-500 hover:underline">予約確認</Link>」にアクセスします。</p>
+                            </li>
+                            <li>
+                                <strong>予約情報の入力:</strong>
+                                <p className="ml-4 text-gray-600">予約完了時にお伝えした「予約番号」と、予約時に入力した「メールアドレス」を入力して検索します。</p>
+                            </li>
+                            <li>
+                                <strong>予約内容の表示:</strong>
+                                <p className="ml-4 text-gray-600">予約詳細が表示されます。</p>
+                            </li>
+                            <li>
+                                <strong>キャンセル手続き:</strong>
+                                <p className="ml-4 text-gray-600">キャンセル可能な期間内であれば、「予約をキャンセルする」ボタンが表示されます。ボタンを押すとキャンセルが完了し、確認メールが送信されます。</p>
+                                <p className="ml-4 text-sm text-red-600 mt-1">※キャンセル期限を過ぎている場合はボタンが表示されません。直接店舗までご連絡ください。</p>
+                            </li>
+                        </ol>
                     </div>
-                )}
+                </div>
+            </section>
 
-                {/* --- ③ 時間選択 --- */}
-                {currentStep === 'TIME' && selectedService && selectedDate && (
-                    <div className="mt-8 pt-6 border-t">
-                        <div className="p-2 mb-4 bg-gray-100 rounded-md">
-                            <p className="font-semibold">
-                                <span className="text-sm">メニュー:</span> {selectedService.name}</p>
-                            <p className="font-semibold">
-                                <span className="text-sm">日付:</span> {format(selectedDate, 'yyyy年MM月dd日')}</p>
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 3. 時間を選択して下さい</h3>
-                        {timeSlotsLoading ? <p className="text-center text-gray-600">利用可能な時間枠を読み込み中...</p> : availableTimeSlots.length === 0 ? <p className="text-red-600 text-center">この日付とサービスでは利用可能な時間枠がありません。</p> : (
-                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                {availableTimeSlots.map(time => (<button key={time} type="button" onClick={() => handleTimeSelect(time)} className="p-2 border rounded-md text-center hover:bg-blue-500 hover:text-white transition-colors">{time}</button>))}
-                            </div>
-                        )}
-                        <button onClick={() => setCurrentStep('DATE')} className="mt-4 text-blue-600 hover:underline">← 日付の選択に戻る</button>
+            {/* 管理者向けマニュアル */}
+            <section>
+                <h2 className="text-2xl font-bold text-gray-700 mb-4">■ 管理者向けマニュアル</h2>
+                <p className="mb-4 text-gray-600">管理画面（<Link to="/admin" className="text-blue-500 hover:underline">/admin</Link>）にアクセスし、設定されたIDとパスワードでログインしてください。</p>
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-xl font-semibold text-green-600 mb-3">1. 予約管理</h3>
+                        <ul className="list-disc list-inside space-y-2 bg-green-50 p-4 rounded-lg">
+                            <li><strong>予約の確認:</strong> カレンダーで日付を選択すると、その日の予約が一覧で表示されます。</li>
+                            <li><strong>予約詳細:</strong> 一覧から特定の予約をクリックすると、お客様情報などの詳細を確認できます。</li>
+                            <li><strong>強制キャンセル:</strong> 予約詳細画面から、管理者が手動で予約をキャンセルすることができます。</li>
+                        </ul>
                     </div>
-                )}
-
-                {/* --- ④ 予約者情報入力 --- */}
-                {currentStep === 'DETAILS' && selectedService && selectedDate && selectedTime && (
-                    <div className="mt-8 pt-6 border-t">
-                        <div>
-                            <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 4. お客様情報を入力</h3>
-                            <form onSubmit={handleProceedToConfirmation} className="space-y-4">
-                                <div className='p-4 bg-gray-100 rounded-md space-y-1'>
-                                    <p>
-                                        <strong>サービス:</strong> {selectedService.name}</p>
-                                    <p>
-                                        <strong>日時:</strong> {`${format(selectedDate, 'yyyy年MM月dd日')} ${selectedTime}`}</p>
-                                </div>
-                                <div>
-                                    <label htmlFor="customer-name" className="block text-gray-700 font-semibold mb-1">お名前 <span className="text-red-500">*</span>
-                                    </label>
-                                    <input type="text" id="customer-name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required className="w-full p-2 border border-gray-300 rounded-md" placeholder="山田 太郎" />
-                                </div>
-                                <div>
-                                    <label htmlFor="customer-email" className="block text-gray-700 font-semibold mb-1">メールアドレス <span className="text-red-500">*</span>
-                                    </label>
-                                    <input type="email" id="customer-email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} required className="w-full p-2 border border-gray-300 rounded-md" placeholder="your.email@example.com" />
-                                </div>
-                                <div>
-                                    <label htmlFor="customer-phone" className="block text-gray-700 font-semibold mb-1">電話番号 (任意)</label>
-                                    <input type="tel" id="customer-phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md" placeholder="090-XXXX-XXXX" />
-                                </div>
-                                {submitting && <p className="text-center text-blue-600">予約を送信中...</p>}
-                                {error && <p className="text-center text-red-500">{error}</p>}
-                                <button type="submit" disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 disabled:opacity-50">予約を確定する</button>
-                            </form>
-                            <button onClick={() => setCurrentStep('TIME')} className="mt-4 text-blue-600 hover:underline">← 時間の選択に戻る</button>
-                        </div>
+                    <div>
+                        <h3 className="text-xl font-semibold text-green-600 mb-3">2. サービス（メニュー）管理</h3>
+                        <ul className="list-disc list-inside space-y-2 bg-green-50 p-4 rounded-lg">
+                            <li><strong>追加:</strong> 新しいサービス（メニュー）の名前、価格、所要時間を設定して追加できます。</li>
+                            <li><strong>編集/削除:</strong> 既存のサービス内容を変更したり、提供を終了したサービスを削除したりできます。</li>
+                        </ul>
                     </div>
-                )}
-
-                {/* --- ★ ⑤ 予約内容確認 --- */}
-                {currentStep === 'CONFIRMATION' && selectedService && selectedDate && selectedTime && (
-                    <div className="mt-8 pt-6 border-t">
-                        <h3 className="text-xl font-semibold text-gray-700 mb-4">◎ 5. ご予約内容の確認</h3>
-                        
-                        {/* キャンセルポリシー表示 */}
-                        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
-                            <h4 className="font-bold text-yellow-800">キャンセルポリシー</h4>
-                            <p className="text-sm text-yellow-700 mt-1">
-                                ご予約のキャンセルは、予約日の<strong>{salon.cancellation_deadline_days}日前</strong>まで可能です。
-                                これ以降のキャンセルは直接店舗にご連絡ください。
-                            </p>
-                        </div>
-                        
-                        {/* 予約内容 */}
-                        <div className="space-y-3 bg-gray-50 p-4 rounded-md">
-                            <div><strong className="w-28 inline-block">サービス:</strong> {selectedService.name}</div>
-                            <div><strong className="w-28 inline-block">料金:</strong> {parseInt(selectedService.price).toLocaleString()}円</div>
-                            <div><strong className="w-28 inline-block">日時:</strong> {`${format(selectedDate, 'yyyy年MM月dd日')} ${selectedTime}`}</div>
-                            <hr className="my-3"/>
-                            <div><strong className="w-28 inline-block">お名前:</strong> {customerName}</div>
-                            <div><strong className="w-28 inline-block">メール:</strong> {customerEmail}</div>
-                            <div><strong className="w-28 inline-block">電話番号:</strong> {customerPhone || '未入力'}</div>
-                        </div>
-
-                        {submitting && <p className="text-center text-blue-600 mt-4">予約を送信中...</p>}
-                        {error && <p className="text-center text-red-500 mt-4">{error}</p>}
-                        
-                        {/* アクションボタン */}
-                        <div className="mt-6 space-y-3">
-                            <button onClick={handleFinalSubmit} disabled={submitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 disabled:opacity-50">
-                                この内容で予約する
-                            </button>
-                            <button onClick={() => setCurrentStep('DETAILS')} disabled={submitting} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-lg transition duration-300">
-                                入力内容を修正する
-                            </button>
-                        </div>
+                    <div>
+                        <h3 className="text-xl font-semibold text-green-600 mb-3">3. 営業スケジュール設定</h3>
+                         <ul className="list-disc list-inside space-y-2 bg-green-50 p-4 rounded-lg">
+                            <li><strong>基本設定:</strong> 曜日ごとの定休日と、基本的な営業開始・終了時間を設定します。</li>
+                            <li><strong>個別設定:</strong> 特定の日付に対して、臨時休業（祝日など）や、営業時間の変更（時短営業など）を設定することができます。カレンダーの日付をクリックして設定します。</li>
+                        </ul>
                     </div>
-                )}
+                    <div>
+                        <h3 className="text-xl font-semibold text-green-600 mb-3">4. キャンセルポリシー設定</h3>
+                         <ul className="list-disc list-inside space-y-2 bg-green-50 p-4 rounded-lg">
+                            <li>「キャンセル期限」の項目で、「予約日の何日前までお客様自身でのキャンセルを許可するか」を設定します。例えば「1」と設定すると、予約日の前日までキャンセルが可能になります。</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-semibold text-green-600 mb-3">5. 統計情報</h3>
+                         <ul className="list-disc list-inside space-y-2 bg-green-50 p-4 rounded-lg">
+                            <li>管理画面上部の「統計」タブからアクセスします。</li>
+                            <li>月ごとの予約件数、売上合計を確認できます。</li>
+                            <li>サービスごとの予約件数ランキングも表示され、人気のメニューを把握できます。</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            
+            <div className="mt-8 text-center">
+                <Link to="/" className="text-blue-600 hover:underline">
+                    トップページに戻る
+                </Link>
             </div>
         </div>
     );
 };
 
-export default ServiceAndReservationPicker;
+export default Manual;
