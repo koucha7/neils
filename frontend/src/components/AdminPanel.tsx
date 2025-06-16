@@ -148,16 +148,11 @@ const MenuManagement: React.FC = () => {
 
 // 2. 新しい勤怠管理コンポーネント
 const AttendanceManagement: React.FC = () => {
-    const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date());
-    const [monthlySchedules, setMonthlySchedules] = useState<Record<string, ScheduleInfo>>({});
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [currentDisplayDate] = useState(new Date());
+    const [setMonthlySchedules] = useState<Record<string, ScheduleInfo>>({});
+    const [setLoading] = useState(true);
+    const [setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedSchedule] = useState<{ date: Date; info: ScheduleInfo | null }>({ date: new Date(), info: null });
-    const [modalStatus, setModalStatus] = useState<'working' | 'holiday'>('working');
-    const [modalStartTime, setModalStartTime] = useState('10:00');
-    const [modalEndTime, setModalEndTime] = useState('19:00');
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [timeSlots, setTimeSlots] = useState<{time: string, is_available: boolean}[]>([]);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     
@@ -214,47 +209,6 @@ const AttendanceManagement: React.FC = () => {
         
         setIsModalOpen(false);
         alert('保存しました。');
-    };
-
-    const getDayClassName = (date: Date): string => {
-        const dateStr = format(date, 'yyyy-MM-dd');
-        const schedule = monthlySchedules[dateStr];
-        if (!schedule) return '';
-        if (schedule.status === 'HOLIDAY') return 'react-datepicker__day--holiday';
-        if (schedule.status === 'SPECIAL_WORKING') return 'react-datepicker__day--special-working';
-        if (schedule.status === 'DEFAULT_HOLIDAY') return 'react-datepicker__day--default-holiday';
-        return '';
-    };
-
-    const handleSaveSchedule = async () => {
-        setIsSubmitting(true);
-        const dateStr = format(selectedSchedule.date, 'yyyy-MM-dd');
-        const scheduleId = selectedSchedule.info?.id;
-        const requestData = { salon: 1, date: dateStr, is_holiday: modalStatus === 'holiday', start_time: modalStatus === 'working' ? modalStartTime : '09:00', end_time: modalStatus === 'working' ? modalEndTime : '17:00', };
-        try {
-            if (scheduleId) { await api.put(`/date-schedules/${scheduleId}/`, requestData); } else { await api.post('/date-schedules/', requestData); }
-            await fetchMonthlySchedules(currentDisplayDate);
-            setIsModalOpen(false);
-        } catch (err) {
-            alert('設定の保存に失敗しました。');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const handleDeleteSchedule = async () => {
-        const scheduleId = selectedSchedule.info?.id;
-        if (!scheduleId || !window.confirm('この日の特別設定を削除しますか？')) return;
-        setIsSubmitting(true);
-        try {
-            await api.delete(`/date-schedules/${scheduleId}/`);
-            await fetchMonthlySchedules(currentDisplayDate);
-            setIsModalOpen(false);
-        } catch (err) {
-            alert('設定の削除に失敗しました。');
-        } finally {
-            setIsSubmitting(false);
-        }
     };
 
     return (
