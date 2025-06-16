@@ -126,19 +126,10 @@ const MenuManagement: React.FC = () => {
 // 2. 受付時間設定
 const AttendanceManagement: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [calendarSelectedDate, setCalendarSelectedDate] = useState<Date | null>(null);
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [timeSlots, setTimeSlots] = useState<{ time: string, is_available: boolean }[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const handleDateClick = async (date: Date | null) => {
-        if (!date) return;
-        setCalendarSelectedDate(date);
-        setIsSubmitting(true);
-        try {
-            const dateStr = format(date, 'yyyy-MM-dd'); const response = await api.get('admin/available-slots/', {
-                params: { date: dateStr }
-            }); setTimeSlots(response.data); setIsModalOpen(true);
-        } catch (error) { alert('時間枠の読み込みに失敗しました。'); console.error(error); } finally { setIsSubmitting(false); }
-    };
+    const handleDateClick = async (date: Date | null) => { if (!date) return; setSelectedDate(date); setIsSubmitting(true); try { const dateStr = format(date, 'yyyy-MM-dd'); const response = await api.get('admin/available-slots/', { params: { date: dateStr } }); setTimeSlots(response.data); setIsModalOpen(true); } catch (error) { alert('時間枠の読み込みに失敗しました。'); console.error(error); } finally { setIsSubmitting(false); } };
     const handleSlotToggle = (timeToToggle: string) => { setTimeSlots(prevSlots => prevSlots.map(slot => slot.time === timeToToggle ? { ...slot, is_available: !slot.is_available } : slot)); };
     const handleSave = async () => { if (!selectedDate) return; setIsSubmitting(true); try { const availableTimes = timeSlots.filter(slot => slot.is_available).map(slot => slot.time); const dateStr = format(selectedDate, 'yyyy-MM-dd'); await api.post('admin/available-slots/', { date: dateStr, times: availableTimes }); setIsModalOpen(false); alert('保存しました。'); } catch (error) { alert('保存に失敗しました。'); console.error(error); } finally { setIsSubmitting(false); } };
     return (<div>
@@ -169,7 +160,7 @@ const ReservationList: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [startDate, setStartDate] = useState<Date | null>(new Date());
-    const [endDate, setEndDate] = useState<Date | null>(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d; })();
+    const [endDate, setEndDate] = useState<Date | null>(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d; });
     const navigate = useNavigate();
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['confirmed', 'pending']);
     const allStatuses = [{ value: 'pending', label: '保留中' }, { value: 'confirmed', label: '確定済み' }, { value: 'cancelled', label: 'キャンセル済み' }, { value: 'completed', label: '完了済み' },];
@@ -372,4 +363,5 @@ const AdminPanel: React.FC = () => {
     );
 };
 
+// ★★★ 最後にAdminPanelをデフォルトエクスポートする ★★★
 export default AdminPanel;
