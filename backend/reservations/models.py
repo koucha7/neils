@@ -112,4 +112,19 @@ class NotificationSetting(models.Model):
     def __str__(self):
         return "システム通知設定"
     
-    
+class AvailableTimeSlot(models.Model):
+    """
+    管理者が設定した、予約を受け付ける個別の時間枠。
+    """
+    date = models.DateField(verbose_name='日付')
+    time = models.TimeField(verbose_name='時間')
+
+    class Meta:
+        # 同じ日付と時間の組み合わせはユニークにする
+        unique_together = ('date', 'time')
+        ordering = ['date', 'time']
+        verbose_name = '予約可能時間枠'
+        verbose_name_plural = '予約可能時間枠'
+
+    def __str__(self):
+        return f"{self.date.strftime('%Y-%m-%d')} {self.time.strftime('%H:%M')}"

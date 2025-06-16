@@ -1,4 +1,4 @@
-from .models import Service, Reservation, WeeklyDefaultSchedule, DateSchedule, NotificationSetting
+from .models import Service, Reservation, WeeklyDefaultSchedule, DateSchedule, NotificationSetting, AvailableTimeSlot
 from .serializers import NotificationSettingSerializer
 from datetime import datetime, time, timedelta, date
 from django.conf import settings
@@ -312,7 +312,7 @@ class NotificationSettingAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class AvailabilityCheckAPIView(APIView):
-    permission_classes = [AllowAny] # ★追加
+    permission_classes = [AllowAny]
     def get(self, request, *args, **kwargs):
         date_str = request.query_params.get('date')
         service_id = request.query_params.get('service_id')
@@ -320,59 +320,31 @@ class AvailabilityCheckAPIView(APIView):
         if not date_str or not service_id:
             return Response({"error": "日付とサービスIDが必要です。"}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-            service = Service.objects.get(id=service_id)
-        except (ValueError, Service.DoesNotExist):
-            return Response({"error": "無効な日付またはサービスIDです。"}, status=status.HTTP_400_BAD_REQUEST)
-
-        opening_time, closing_time = None, None
-        date_schedule = DateSchedule.objects.filter(date=target_date).first()
-
-        if date_schedule:
-            if date_schedule.is_closed: return Response([])
-            opening_time, closing_time = date_schedule.opening_time, date_schedule.closing_time
-        else:
-            weekday = target_date.weekday()
-            default_schedule = WeeklyDefaultSchedule.objects.filter(day_of_week=weekday).first()
-            if not default_schedule or default_schedule.is_closed: return Response([])
-            opening_time, closing_time = default_schedule.opening_time, default_schedule.closing_time
-
-        if not isinstance(opening_time, time) or not isinstance(closing_time, time):
-            return Response([])
-
-        existing_reservations = Reservation.objects.filter(
-            start_time__date=target_date
-        ).exclude(status="cancelled")
-
-        available_slots = []
-        slot_interval = timedelta(minutes=30)
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        service = Service.objects.get(id=service_id)
         
-        # ★★★ ここからが重要な修正 ★★★
-        # 全ての時刻をタイムゾーン情報を持たない naive オブジェクトに統一する
-        start_of_day_naive = datetime.combine(target_date, opening_time)
-        end_of_day_naive = datetime.combine(target_date, closing_time)
+        # 1. 管理者が設定したその日の予約可能枠を取得
+        available_slots = AvailableTimeSlot.objects.filter(date=target_date)
         
-        current_slot_naive = start_of_day_naive
-        while (current_slot_naive + timedelta(minutes=service.duration_minutes)) <= end_of_day_naive:
-            is_available = True
+        # 2. その日の既存の予約を取得
+        existing_reservations = Reservation.objects.filter(start_time__date=target_date, status__in=['pending', 'confirmed'])
+
+        # 予約で埋まっている時間枠を除外する
+        final_slots = []
+        for slot in available_slots:
+            slot_start_time = datetime.combine(target_date, slot.time)
+            slot_end_time = slot_start_time + timedelta(minutes=service.duration_minutes) # サービスの所要時間を考慮
             
-            potential_start = current_slot_naive
-            potential_end = current_slot_naive + timedelta(minutes=service.duration_minutes)
-
+            is_booked = False
             for r in existing_reservations:
-                # データベースから取得した r.start_time も naive なので、これで比較できる
-                if max(potential_start, r.start_time) < min(potential_end, r.end_time):
-                    is_available = False
+                if max(slot_start_time, r.start_time) < min(slot_end_time, r.end_time):
+                    is_booked = True
                     break
             
-            if is_available:
-                available_slots.append(potential_start.strftime("%H:%M"))
-            
-            current_slot_naive += slot_interval
-        # ★★★ ここまでが重要な修正 ★★★
-
-        return Response(available_slots, status=status.HTTP_200_OK)
+            if not is_booked:
+                final_slots.append(slot.time.strftime('%H:%M'))
+                
+        return Response(final_slots)
     
 #
 class MonthlyAvailabilityCheckAPIView(APIView):
@@ -613,3 +585,55 @@ class TimeSlotAPIView(APIView):
             current_time += datetime.timedelta(minutes=30)
 
         return Response(time_slots, status=status.HTTP_200_OK)
+    
+class AdminAvailableSlotView(APIView):
+    """
+    管理画面で、特定の日付の予約可能時間枠を管理するためのAPI
+    """
+    permission_classes = [IsAdminUser] # 管理者のみがアクセス可能
+
+    def get(self, request, *args, **kwargs):
+        """
+        指定された日付の、設定可能な時間枠の一覧と、
+        すでに設定済みの時間枠の情報を返す
+        """
+        date_str = request.query_params.get('date')
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # その日に設定されている予約可能時間枠を取得
+        saved_slots = set(slot.time for slot in AvailableTimeSlot.objects.filter(date=target_date))
+
+        # 9:00から21:00まで30分ごとの時間枠を生成（ここは実態に合わせて変更してください）
+        response_data = []
+        current_time = datetime.strptime("09:00", "%H:%M").time()
+        end_time = datetime.strptime("21:00", "%H:%M").time()
+        
+        while current_time <= end_time:
+            response_data.append({
+                "time": current_time.strftime('%H:%M'),
+                "is_available": current_time in saved_slots
+            })
+            # 時間を30分進める
+            current_time = (datetime.combine(target_date, current_time) + timedelta(minutes=30)).time()
+
+        return Response(response_data)
+
+    def post(self, request, *args, **kwargs):
+        """
+        指定された日付の予約可能時間枠を、受け取ったデータで上書きする
+        """
+        date_str = request.data.get('date')
+        times = request.data.get('times', []) # ["09:00", "10:30", ...] のようなリスト
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # その日の既存の設定をすべて削除
+        AvailableTimeSlot.objects.filter(date=target_date).delete()
+
+        # 新しい設定をまとめて作成
+        slots_to_create = [
+            AvailableTimeSlot(date=target_date, time=datetime.strptime(t, '%H:%M').time())
+            for t in times
+        ]
+        AvailableTimeSlot.objects.bulk_create(slots_to_create)
+
+        return Response({'status': 'success'}, status=status.HTTP_201_CREATED)

@@ -153,11 +153,14 @@ const AttendanceManagement: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedSchedule, setSelectedSchedule] = useState<{ date: Date; info: ScheduleInfo | null }>({ date: new Date(), info: null });
+    const [selectedSchedule] = useState<{ date: Date; info: ScheduleInfo | null }>({ date: new Date(), info: null });
     const [modalStatus, setModalStatus] = useState<'working' | 'holiday'>('working');
     const [modalStartTime, setModalStartTime] = useState('10:00');
     const [modalEndTime, setModalEndTime] = useState('19:00');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [timeSlots, setTimeSlots] = useState<{time: string, is_available: boolean}[]>([]);
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+    
 
     const fetchMonthlySchedules = useCallback(async (date: Date) => {
         setLoading(true);
@@ -179,21 +182,38 @@ const AttendanceManagement: React.FC = () => {
 
     useEffect(() => { fetchMonthlySchedules(currentDisplayDate); }, [currentDisplayDate, fetchMonthlySchedules]);
 
-    const handleDateClick = (date: Date | null) => { // ★エラー修正: dateの型を Date | null に変更
-        if (!date) return; // ★エラー修正: dateがnullの場合は何もしない
+    const handleDateClick = async (date: Date | null) => {
+        if (!date) return;
+        setSelectedDate(date);
+        
+        // APIからその日の時間枠情報を取得
         const dateStr = format(date, 'yyyy-MM-dd');
-        const scheduleInfo = monthlySchedules[dateStr] || null;
-        setSelectedSchedule({ date, info: scheduleInfo });
-        if (scheduleInfo?.status === 'HOLIDAY') {
-            setModalStatus('holiday');
-        } else {
-            setModalStatus('working');
-            const startTime = scheduleInfo?.start_time || '10:00';
-            const endTime = scheduleInfo?.end_time || '19:00';
-            setModalStartTime(startTime);
-            setModalEndTime(endTime);
-        }
+        const response = await api.get('admin/available-slots/', { params: { date: dateStr } });
+        setTimeSlots(response.data);
         setIsModalOpen(true);
+    };
+
+    const handleSlotToggle = (timeToToggle: string) => {
+        setTimeSlots(prevSlots =>
+            prevSlots.map(slot =>
+                slot.time === timeToToggle ? { ...slot, is_available: !slot.is_available } : slot
+            )
+        );
+    };
+
+    // 保存ボタンの処理
+    const handleSave = async () => {
+        if (!selectedDate) return;
+        const availableTimes = timeSlots.filter(slot => slot.is_available).map(slot => slot.time);
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        
+        await api.post('admin/available-slots/', {
+            date: dateStr,
+            times: availableTimes
+        });
+        
+        setIsModalOpen(false);
+        alert('保存しました。');
     };
 
     const getDayClassName = (date: Date): string => {
@@ -241,34 +261,33 @@ const AttendanceManagement: React.FC = () => {
         <div>
             <h2 className="text-2xl font-bold mb-4">勤怠設定</h2>
             <div className="bg-white p-4 rounded-lg shadow-md">
-                <p className="text-gray-600 mb-4">カレンダーの日付をクリックして、その日の勤怠（特別営業時間または休日）を設定します。</p>
-                <div className="flex justify-center">
-                    {loading ? <p>カレンダーを読み込み中...</p> : error ? <p className="text-red-500">{error}</p> : (
-                        <DatePicker selected={null} onChange={handleDateClick} onMonthChange={(date) => setCurrentDisplayDate(date)} inline locale="ja" dayClassName={getDayClassName} />
-                    )}
-                </div>
+                 <p className="text-gray-600 mb-4">カレンダーの日付をクリックして、予約を受け付ける時間枠を設定します。</p>
+                 <div className="flex justify-center">
+                    <DatePicker selected={null} onChange={handleDateClick} inline locale="ja" />
+                 </div>
             </div>
-            {isModalOpen && (
+
+            {/* 時間枠設定モーダル */}
+            {isModalOpen && selectedDate && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-                        <h4 className="text-lg font-bold mb-4">{format(selectedSchedule.date, 'yyyy年 M月 d日')} の設定</h4>
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">種別</label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center"><input type="radio" value="working" checked={modalStatus === 'working'} onChange={() => setModalStatus('working')} className="form-radio" /><span className="ml-2">出勤</span></label>
-                                <label className="flex items-center"><input type="radio" value="holiday" checked={modalStatus === 'holiday'} onChange={() => setModalStatus('holiday')} className="form-radio" /><span className="ml-2">休日</span></label>
-                            </div>
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
+                        <h4 className="text-lg font-bold mb-4">{format(selectedDate, 'yyyy年 M月 d日')} の受付時間設定</h4>
+                        <div className="max-h-96 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 gap-2 border p-4 rounded-md">
+                            {timeSlots.map(slot => (
+                                <label key={slot.time} className="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={slot.is_available}
+                                        onChange={() => handleSlotToggle(slot.time)}
+                                        className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="ml-3 text-gray-700">{slot.time}</span>
+                                </label>
+                            ))}
                         </div>
-                        {modalStatus === 'working' && (
-                            <div className="grid grid-cols-2 gap-4 mb-6">
-                                <div><label htmlFor="start-time" className="block text-sm font-medium text-gray-700">開始時刻</label><input type="time" id="start-time" value={modalStartTime} onChange={(e) => setModalStartTime(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" /></div>
-                                <div><label htmlFor="end-time" className="block text-sm font-medium text-gray-700">終了時刻</label><input type="time" id="end-time" value={modalEndTime} onChange={(e) => setModalEndTime(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" /></div>
-                            </div>
-                        )}
-                        <div className="flex flex-col gap-2">
-                            <button onClick={handleSaveSchedule} disabled={isSubmitting} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md disabled:bg-blue-300">{isSubmitting ? '保存中...' : 'この内容で保存'}</button>
-                            {selectedSchedule.info?.id && (<button onClick={handleDeleteSchedule} disabled={isSubmitting} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md disabled:bg-red-300">設定を削除</button>)}
-                            <button onClick={() => setIsModalOpen(false)} disabled={isSubmitting} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md mt-2">キャンセル</button>
+                        <div className="flex justify-end gap-4 mt-6">
+                             <button onClick={() => setIsModalOpen(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-6 rounded-md">キャンセル</button>
+                             <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-md">保存</button>
                         </div>
                     </div>
                 </div>

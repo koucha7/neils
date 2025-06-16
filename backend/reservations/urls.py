@@ -49,6 +49,7 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('statistics/', StatisticsView.as_view(), name='statistics'),
+    path('admin/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'), # この行を追加
 ]
 
 urlpatterns += router.urls # ルーターで登録されたViewSetのURLを追加
