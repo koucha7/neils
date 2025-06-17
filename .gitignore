@@ -10790,3 +10790,4 @@ backend/.env
 /backend/venv/Scripts/pythonw.exe
 /backend/venv/Scripts/sqlformat.exe
 /backend/venv/pyvenv.cfg
+backend/test_env.py
