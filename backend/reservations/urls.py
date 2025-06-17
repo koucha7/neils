@@ -14,7 +14,6 @@ from .views import (
     NotificationSettingAPIView,
     HealthCheckAPIView,
     TimeSlotAPIView,
-    MonthlyScheduleAdminView
     )
 
 from rest_framework_simplejwt.views import (
@@ -39,7 +38,6 @@ urlpatterns = [
     path('monthly-availability/', MonthlyAvailabilityCheckAPIView.as_view(), name='monthly-availability-check'),
     path('notification-settings/', NotificationSettingAPIView.as_view(), name='notification-settings'),
     path('statistics/', StatisticsView.as_view(), name='statistics'),
-    path('admin/monthly-schedules/', MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedules'),
     path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'),
     
     # ヘルスチェック用のパス
