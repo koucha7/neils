@@ -1,3 +1,5 @@
+// frontend/src/api/axiosConfig.ts
+
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -14,25 +16,22 @@ const api = axios.create({
   },
 });
 
+// ===== リクエストインターセプター (ここが最重要の修正箇所です) =====
 api.interceptors.request.use(
     (config) => {
-        // --- 認証トークンの処理 ---
+        // 1. 認証トークンをヘッダーに追加します (既存の処理)
         const token = localStorage.getItem('accessToken');
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // --- URLに言語プレフィックスを追加する処理 ---
-        // 1. /api/ で始まるURLのみを対象とする
-        if (config.url && config.url.startsWith('/api/')) {
+        // 2. URLを動的に書き換えます (新しいロジック)
+        if (config.url) {
             const lang = localStorage.getItem('language') || 'ja';
 
-            // 2. /api/admin/ で始まるURLは、国際化の対象外とする
-            if (config.url.startsWith('/api/admin/')) {
-                // そのままのURLを使用 (例: /api/admin/available-slots/)
-            } else {
-                // 3. それ以外の /api/ で始まるURLには言語コードを先頭に追加
-                //    例: /api/reservations/ -> /ja/api/reservations/
+            // '/api/admin/'で始まるURLは国際化の対象外なので、何もしない
+            // それ以外の'/api/'で始まるURLの場合のみ、言語コードを先頭に追加する
+            if (config.url.startsWith('/api/') && !config.url.startsWith('/api/admin/')) {
                 config.url = `/${lang}${config.url}`;
             }
         }
@@ -44,6 +43,7 @@ api.interceptors.request.use(
     }
 );
 
+// ===== レスポンスインターセプター (変更なし) =====
 api.interceptors.response.use(
     (response) => {
         return response;
