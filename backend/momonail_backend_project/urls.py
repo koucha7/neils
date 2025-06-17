@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.i18n import i18n_patterns
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from reservations.views import AdminAvailableSlotView, MonthlyScheduleAdminView, HealthCheckAPIView
+from reservations.views import AdminAvailableSlotView, MonthlyScheduleAdminView, HealthCheckAPIView, debug_urls_view
 
 # --- 国際化しないURL ---
 urlpatterns = [
@@ -12,6 +12,7 @@ urlpatterns = [
     path('admin-api/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'),
     path('admin-api/monthly-schedules/', MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedules'),
     path('api/health/', HealthCheckAPIView.as_view(), name='health_check'),
+    path('debug-show-urls/', debug_urls_view, name='debug-show-urls'),
 ]
 
 # --- 国際化が必要なURL ---

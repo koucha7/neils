@@ -18,6 +18,8 @@ import os
 import requests
 import uuid
 import calendar
+from django.http import HttpResponse
+from django.urls import get_resolver
 
 
 from .models import (
@@ -637,3 +639,34 @@ class AdminAvailableSlotView(APIView):
         AvailableTimeSlot.objects.bulk_create(slots_to_create)
 
         return Response({'status': 'success'}, status=status.HTTP_201_CREATED)
+    
+def debug_urls_view(request):
+    """
+    現在のプロジェクトに登録されている全てのURLパターンをリストアップするデバッグ用ビュー。
+    """
+    resolver = get_resolver(None)
+    patterns = sorted([
+        (str(p.pattern), p.lookup_str, p.name)
+        for p in resolver.url_patterns
+    ])
+    
+    # i18n_patterns の中身も展開する
+    for p in resolver.url_patterns:
+        if hasattr(p, 'url_patterns'):
+             for sub_p in p.url_patterns:
+                if hasattr(sub_p, 'url_patterns'):
+                     for sub_sub_p in sub_p.url_patterns:
+                         patterns.append(
+                             (f"/{p.pattern}{sub_p.pattern}{sub_sub_p.pattern}", sub_sub_p.lookup_str, sub_sub_p.name)
+                         )
+                else:
+                     patterns.append(
+                         (f"/{p.pattern}{sub_p.pattern}", sub_p.lookup_str, sub_p.name)
+                     )
+
+    response_html = "<h1>Registered URL Patterns</h1><table border='1' cellpadding='5'><tr><th>Pattern</th><th>View</th><th>Name</th></tr>"
+    for pattern, view, name in sorted(patterns):
+        response_html += f"<tr><td>{pattern}</td><td>{view}</td><td>{name or ''}</td></tr>"
+    response_html += "</table>"
+    
+    return HttpResponse(response_html)
