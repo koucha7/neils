@@ -1,16 +1,8 @@
 # MomoNail/backend/momonail_backend_project/settings.py
 import os
 import dj_database_url # ★追加
-from dotenv import load_dotenv # ⇐ この行を追加
 
 from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-# ↓↓↓↓ この行を修正します ↓↓↓↓
-# 修正前: load_dotenv() 
-# 修正後:
-load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
