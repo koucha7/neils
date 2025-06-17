@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
-
-# エラーが発生したらスクリプトを終了
+# exit on error
 set -o errexit
 
-# Djangoの依存関係をインストール
+# PoetryやPipなどの依存関係をインストール
 pip install -r requirements.txt
 
-# collectstatic の実行 (STATIC_ROOTに静的ファイルを収集)
-python manage.py collectstatic --noinput
+# 静的ファイルを集める
+python manage.py collectstatic --no-input
 
-# データベースマイグレーションの実行
-python manage.py migrate --noinput
-
-python manage.py createsuperuser
+# ★★★ データベースのマイグレーションをここに記述 ★★★
+python manage.py migrate
