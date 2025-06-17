@@ -1,20 +1,20 @@
 # MomoNail/backend/momonail_backend_project/settings.py
 import os
 import dj_database_url # ★追加
-from dotenv import load_dotenv # ⇐ この行を追加
+#from dotenv import load_dotenv # ⇐ この行を追加
 
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+#BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ↓↓↓↓ この行を修正します ↓↓↓↓
 # 修正前: load_dotenv() 
 # 修正後:
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+#load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') # ★環境変数から読み込む (Renderで設定)
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'temporary-insecure-key-for-build')
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') # ★環境変数で設定 (Renderで設定)
 
@@ -62,6 +62,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', # ★この位置を確認★
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'corsheaders.middleware.CorsMiddleware', # ★この位置を確認★
     'django.middleware.csrf.CsrfViewMiddleware',
