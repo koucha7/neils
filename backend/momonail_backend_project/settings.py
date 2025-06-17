@@ -3,6 +3,9 @@ import os
 import dj_database_url # ★追加
 
 from pathlib import Path
+from dotenv import load_dotenv # ⇐ この行を追加
+
+load_dotenv() # ⇐ この行を追加
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
