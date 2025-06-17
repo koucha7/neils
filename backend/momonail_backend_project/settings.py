@@ -128,12 +128,4 @@ SIMPLE_JWT = {
 }
 
 # 環境変数からCORS許可オリジンを取得し、リストに変換
-CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
-CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',') if CORS_ALLOWED_ORIGINS_STR else []
-
-# 開発モード（DEBUG=True）の場合、ローカルのフロントエンドを許可リストに追加
-if DEBUG:
-    CORS_ALLOWED_ORIGINS.extend([
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ])
+CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
