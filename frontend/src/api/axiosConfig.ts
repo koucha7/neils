@@ -19,25 +19,23 @@ const api = axios.create({
 // ===== リクエストインターセプター (ここが最重要の修正箇所です) =====
 api.interceptors.request.use(
     (config) => {
-        // 認証トークンを追加
         const token = localStorage.getItem('accessToken');
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
 
-        // URLを動的に書き換え
         if (config.url) {
             const lang = localStorage.getItem('language') || 'ja';
-            
-            // 国際化対象のURL (/api/ で始まり、/api/admin/ や /api/health ではない) の場合のみ
-            // 言語プレフィックスを付与する
-            if (
-                config.url.startsWith('/api/') && 
-                !config.url.startsWith('/api/admin/') && 
-                !config.url.startsWith('/api/token') && 
-                !config.url.startsWith('/api/health')
-            ) {
-                 config.url = `/${lang}${config.url}`;
+            const isApiUrl = config.url.startsWith('/api/');
+            const isExcludedUrl = config.url.startsWith('/api/admin/') || 
+                                config.url.startsWith('/api/token') || 
+                                config.url.startsWith('/api/health');
+
+            // 国際化対象のURLの場合のみ言語プレフィックスを付与
+            if (isApiUrl && !isExcludedUrl) {
+                // 元のURLから '/api/' を取り除き、言語プレフィックスと結合する
+                const pathWithoutApi = config.url.substring('/api'.length);
+                config.url = `/${lang}/api${pathWithoutApi}`;
             }
         }
         return config;
