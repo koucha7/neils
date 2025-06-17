@@ -2,7 +2,7 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import SalonViewSet # salonだけをインポート
+from .views import SalonViewSet, ServiceViewSet # salonだけをインポート
 """ from .views import (
     SalonViewSet,
     ServiceViewSet,
@@ -21,6 +21,7 @@ from .views import SalonViewSet # salonだけをインポート
 
 router = DefaultRouter()
 router.register(r'salons', SalonViewSet, basename='salon')
+router.register(r'services', ServiceViewSet, basename='service')
 """ router.register(r'services', ServiceViewSet, basename='service')
 router.register(r'reservations', ReservationViewSet, basename='reservation')
 router.register(r'weekly-schedules', WeeklyDefaultScheduleViewSet, basename='weeklyschedule')

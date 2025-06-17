@@ -10,15 +10,12 @@ from reservations.views import HealthCheckAPIView
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/health/', HealthCheckAPIView.as_view(), name='health_check'),
-    
-    # ★★★ reservations.urls を i18n_patterns の外に移動させる ★★★
-    path('api/', include('reservations.urls')),
 ]
 
-# i18n_patterns の中からは reservations.urls を削除する
 urlpatterns += i18n_patterns(
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    # path('api/', include('reservations.urls')), # ← この行をコメントアウトまたは削除
+    # ★★★ この行を元に戻します ★★★
+    path('api/', include('reservations.urls')),
     prefix_default_language=False,
 )
