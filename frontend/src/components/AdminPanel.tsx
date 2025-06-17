@@ -394,22 +394,18 @@ const ReservationList: React.FC = () => {
   const fetchReservations = useCallback(async () => {
     setLoading(true);
     try {
-      let url = "/api/reservations/";
       const params = new URLSearchParams();
-      if (startDate) {
-        params.append("start_date", format(startDate, "yyyy-MM-dd"));
-      }
-      if (endDate) {
-        params.append("end_date", format(endDate, "yyyy-MM-dd"));
-      }
-      if (selectedStatuses.length > 0) {
-        selectedStatuses.forEach((status) => {
-          params.append("status", status);
-        });
-      }
-      if (params.toString()) {
-        url = `/api/reservations/?${params.toString()}`;
-      }
+            if (startDate) {
+                params.append('start_date', format(startDate, 'yyyy-MM-dd'));
+            }
+            if (endDate) {
+                params.append('end_date', format(endDate, 'yyyy-MM-dd'));
+            }
+            if (selectedStatuses.length > 0) {
+                selectedStatuses.forEach(status => {
+                    params.append('status', status);
+                });
+            }
       const response = await api.get<Reservation[]>("/api/reservations/", {
         params,
       });
