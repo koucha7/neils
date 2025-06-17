@@ -49,9 +49,20 @@ class SalonViewSet(viewsets.ModelViewSet):
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
-    queryset = Service.objects.all()
+    #queryset = Service.objects.all()
     serializer_class = ServiceSerializer
     permission_classes = [AllowAny] # ★追加
+
+    def get_queryset(self):
+        """
+        URLのクエリパラメータ 'salon' を使って、サービスを絞り込む機能を追加します。
+        """
+        queryset = Service.objects.all()  # まず、すべてのサービスを取得
+        salon_id = self.request.query_params.get('salon', None)
+        if salon_id is not None:
+            # salonパラメータがあれば、そのサロンIDで絞り込む
+            queryset = queryset.filter(salon__id=salon_id)
+        return queryset
 
 
 class WeeklyDefaultScheduleViewSet(viewsets.ModelViewSet):
