@@ -12,8 +12,6 @@ from rest_framework_simplejwt.views import (
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('admin-api/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'),
     path('admin-api/monthly-schedules/', MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedules'),
 ]
@@ -21,5 +19,7 @@ urlpatterns = [
 # 国際化が必要なURL
 urlpatterns += i18n_patterns(
     path('api/', include('reservations.urls')),
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     prefix_default_language=False,
 )
