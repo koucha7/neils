@@ -46,11 +46,11 @@ const ServiceAndReservationPicker: React.FC = () => {
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                const salonResponse = await api.get<Salon[]>('/salons/');
+                const salonResponse = await api.get<Salon[]>('/api/salons/');
                 if (salonResponse.data.length > 0) {
                     const singleSalon = salonResponse.data[0];
                     setSalon(singleSalon);
-                    const servicesResponse = await api.get<Service[]>(`/services/?salon=${singleSalon.id}`);
+                    const servicesResponse = await api.get<Service[]>(`/api/services/?salon=${singleSalon.id}`);
                     setServices(servicesResponse.data);
                 } else {
                     setError('サロン情報が見つかりませんでした。');
