@@ -10,7 +10,6 @@ from .views import (
     AvailabilityCheckAPIView,
     MonthlyAvailabilityCheckAPIView,
     NotificationSettingAPIView,
-    HealthCheckAPIView,
     TimeSlotAPIView,
 )
 
@@ -29,5 +28,4 @@ urlpatterns = [
     path('notification-settings/', NotificationSettingAPIView.as_view(), name='notification-settings'),
     path('statistics/', StatisticsView.as_view(), name='statistics'),
     path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'),
-    path('health/', HealthCheckAPIView.as_view(), name='health_check'),
 ]
