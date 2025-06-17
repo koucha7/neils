@@ -14,8 +14,7 @@ from .views import (
     NotificationSettingAPIView,
     HealthCheckAPIView,
     TimeSlotAPIView,
-    MonthlyScheduleAdminView,
-    AdminAvailableSlotView
+    MonthlyScheduleAdminView
     )
 
 from rest_framework_simplejwt.views import (

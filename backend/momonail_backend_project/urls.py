@@ -3,6 +3,7 @@
 from django.contrib import admin
 from django.urls import path, include # include を追加
 from django.conf.urls.i18n import i18n_patterns
+from reservations.views import AdminAvailableSlotView
 
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
