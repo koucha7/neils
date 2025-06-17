@@ -1,6 +1,6 @@
 # MomoNail/backend/Dockerfile
 # Pythonベースイメージ
-FROM python:3.9-slim-buster
+FROM docker.io/library/python:3.11-slim-buster
 
 # 環境変数を設定
 ENV PYTHONUNBUFFERED 1
