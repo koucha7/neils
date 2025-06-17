@@ -301,7 +301,7 @@ const LoginScreen: React.FC<{ onLoginSuccess: () => void }> = ({ onLoginSuccess 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); setError(''); try { const response = await api.post('/token/', { username, password }); localStorage.setItem('accessToken', response.data.access); localStorage.setItem('refreshToken', response.data.refresh); onLoginSuccess(); } catch (err) { setError('ユーザー名またはパスワードが間違っています。'); } };
+    const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); setError(''); try { const response = await api.post('/api/token/', { username, password }); localStorage.setItem('accessToken', response.data.access); localStorage.setItem('refreshToken', response.data.refresh); onLoginSuccess(); } catch (err) { setError('ユーザー名またはパスワードが間違っています。'); } };
     return (<div className="flex items-center justify-center min-h-screen bg-gray-100">
         <form onSubmit={handleSubmit} className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
             <h2 className="text-3xl font-bold text-center text-gray-800">MomoNail 管理画面</h2>
