@@ -572,7 +572,7 @@ class TimeSlotAPIView(APIView):
         current_time = start_time
         while current_time < end_time:
             time_slots.append(current_time.strftime('%H:%M'))
-            current_time += datetime.timedelta(minutes=30)
+            current_time += timedelta(minutes=30)
             
         return Response(time_slots, status=status.HTTP_200_OK)
     
