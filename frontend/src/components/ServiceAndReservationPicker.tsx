@@ -473,7 +473,6 @@ const ServiceAndReservationPicker: React.FC = () => {
                   キャンセルポリシー
                 </h4>
                 <p className="text-sm text-yellow-700 mt-1">
-                  <strong>{salon.cancellation_deadline_days}日前</strong>
                   キャンセルは直接店舗にご連絡ください。
                 </p>
               </div>

@@ -45,7 +45,7 @@ const ReservationCheck: React.FC = () => {
 
         try {
             // バックエンドAPIに予約番号で問い合わせ
-            const response = await api.get(`/reservations/${reservationNumberInput}/`);
+            const response = await api.get(`/api/reservations/${reservationNumberInput}/`);
             setReservation(response.data);
         } catch (err) {
             if (axios.isAxiosError(err) && err.response?.status === 404) {
