@@ -434,7 +434,7 @@ class HealthCheckAPIView(APIView):
         return Response({"status": "ok"}, status=status.HTTP_200_OK)
     
 class StatisticsView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         # --- 月別売上の集計 ---
