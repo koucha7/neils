@@ -575,18 +575,6 @@ class TimeSlotAPIView(APIView):
             current_time += datetime.timedelta(minutes=30)
             
         return Response(time_slots, status=status.HTTP_200_OK)
-
-        # 30分単位の時間枠を生成
-        time_slots = []
-        start_time = datetime.datetime.combine(target_date, schedule['start_time'])
-        end_time = datetime.datetime.combine(target_date, schedule['end_time'])
-
-        current_time = start_time
-        while current_time < end_time:
-            time_slots.append(current_time.strftime('%H:%M'))
-            current_time += datetime.timedelta(minutes=30)
-
-        return Response(time_slots, status=status.HTTP_200_OK)
     
 class AdminAvailableSlotView(APIView):
     """
