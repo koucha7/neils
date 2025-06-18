@@ -21,7 +21,7 @@ FROM nginx:stable-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Nginx設定 (必要であればカスタマイズ)
-COPY nginx.conf /etc/nginx/conf.d/default.conf # カスタムnginx.confを使う場合
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 8080 # Renderの要件
+EXPOSE 5173
 CMD ["nginx", "-g", "daemon off;"]

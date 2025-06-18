@@ -57,13 +57,13 @@ class ServiceViewSet(viewsets.ModelViewSet):
 class WeeklyDefaultScheduleViewSet(viewsets.ModelViewSet):
     queryset = WeeklyDefaultSchedule.objects.all()
     serializer_class = WeeklyDefaultScheduleSerializer
-    permission_classes = [AllowAny] # ★追加
+    permission_classes = [IsAuthenticated] # ★追加
 
 
 class DateScheduleViewSet(viewsets.ModelViewSet):
     queryset = DateSchedule.objects.all()
     serializer_class = DateScheduleSerializer
-    permission_classes = [AllowAny] # ★追加
+    permission_classes = [IsAuthenticated] # ★追加
 
     def _has_existing_reservations(self, date):
         return Reservation.objects.filter(
@@ -98,7 +98,7 @@ class DateScheduleViewSet(viewsets.ModelViewSet):
 
 
 class ReservationViewSet(viewsets.ModelViewSet):
-    permission_classes = [AllowAny] # ★追加
+    permission_classes = [IsAuthenticated] # ★追加
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
     lookup_field = "reservation_number"
@@ -299,6 +299,7 @@ class NotificationSettingAPIView(APIView):
     """
     通知設定を取得・更新するAPI
     """
+    permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
         # 設定は1つしかないので、最初の1件を取得または作成する
         setting, created = NotificationSetting.objects.get_or_create(pk=1)
@@ -481,6 +482,7 @@ class MonthlyScheduleAdminView(APIView):
     """
     管理画面向けに、指定された月の各日付のスケジュール状態を返す。(最終修正版)
     """
+    permission_classes = [IsAuthenticated]
     def get(self, request, *args, **kwargs):
         try:
             year = int(request.query_params.get('year'))

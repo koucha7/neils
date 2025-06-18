@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # アプリケーションのコードをコピー
 COPY . /app/
 
-EXPOSE 8080
+EXPOSE 5173
 
 ENV DJANGO_SECRET_KEY 'temporary-secret-key-for-building'
 # collectstatic を実行 (Renderで静的ファイルはNginxやGCSで配信することが推奨されるが、

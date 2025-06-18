@@ -97,7 +97,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',
     ),
 }
 
@@ -127,8 +127,5 @@ CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',') if CORS_ALLOWED_ORIGI
 
 # 開発モード（DEBUG=True）の場合、ローカルのフロントエンドを許可リストに追加
 if DEBUG:
-    CORS_ALLOWED_ORIGINS.extend([
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ])
+    CORS_ALLOW_ALL_ORIGINS = True
 LOGIN_URL = '/api/token/' 

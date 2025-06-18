@@ -38,17 +38,19 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args: # <<< ここを追加しました: ビルド時にVITE_API_BASE_URLを渡す
+        VITE_API_BASE_URL: http://localhost:8000/ 
     container_name: momonail_frontend
-    command: npm run dev -- --host 0.0.0.0
+#    command: npm run dev --host 0.0.0.0
     volumes:
       - ./frontend:/app
-      - /app/node_modules # node_modulesをボリュームとしてマウントする（ホストとの同期を避けるため）
+      - /app/node_modules
     ports:
       - "5173:5173"
     depends_on:
       - backend
     environment:
-      VITE_API_BASE_URL: http://localhost:8000/api 
+      VITE_API_BASE_URL: http://localhost:8000
 
 volumes:
-  db_data: # データベースのデータを保存するためのボリューム
+  db_data:
