@@ -14,8 +14,8 @@ from .views import (
     MonthlyAvailabilityCheckAPIView,
     NotificationSettingAPIView,
     TimeSlotAPIView,
-    # ↓↓↓ 管理用ビューのインポートを追加 ↓↓↓
     AdminAvailableSlotView, 
+    ConfiguredDatesView,
     MonthlyScheduleAdminView
 )
 
@@ -38,4 +38,5 @@ urlpatterns += [
     # ↓↓↓↓ 管理用のAPIパスをこちらに集約します ↓↓↓↓
     path('admin/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'),
     path('admin/monthly-schedules/', MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedules'),
+    path('admin/configured-dates/', ConfiguredDatesView.as_view(), name='admin-configured-dates'),
 ]

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { format } from "date-fns";
+import { format, startOfMonth } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import { useNavigate } from "react-router-dom";
 import StatisticsPanel from "./StatisticsPanel";
@@ -256,6 +256,28 @@ const AttendanceManagement: React.FC = () => {
     { time: string; is_available: boolean }[]
   >([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [configuredDates, setConfiguredDates] = useState<Date[]>([]);
+  
+  useEffect(() => {
+    const fetchConfiguredDates = async () => {
+      try {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth() + 1; // getMonthは0始まりなので+1
+        const response = await api.get("/api/admin/configured-dates/", {
+          params: { year, month },
+        });
+        // 文字列の日付をDateオブジェクトに変換
+        const dates = response.data.map((dateStr: string) => new Date(dateStr));
+        setConfiguredDates(dates);
+      } catch (error) {
+        console.error("設定済み日付の取得に失敗しました:", error);
+      }
+    };
+
+    fetchConfiguredDates();
+  }, [currentMonth]); // currentMonthが変更されたら再実行
+
   const handleDateClick = async (date: Date | null) => {
     if (!date) return;
     setSelectedDate(date);
@@ -304,6 +326,21 @@ const AttendanceManagement: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+
+  const today = new Date();
+
+  // ▼▼▼ DayPickerに渡すための設定を定義 ▼▼▼
+  const modifiers = {
+    configured: configuredDates, // 設定済みの日付
+  };
+  const modifiersStyles = {
+    // configuredクラスに適用するスタイル
+    configured: {
+      backgroundColor: "#dcfce7", // 例：薄い緑色
+      color: "#166534",
+    },
+  };
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">受付時間設定</h2>
@@ -312,12 +349,18 @@ const AttendanceManagement: React.FC = () => {
           カレンダーの日付をクリックして、予約を受け付ける30分単位の時間枠を個別に設定します。
         </p>
         <div className="flex justify-center">
-          <DatePicker
-            selected={null}
-            onChange={handleDateClick}
-            inline
-            locale="ja"
-          />
+          <DayPicker
+            mode="single"
+            selected={selectedDate || undefined}
+            onSelect={handleDateClick}
+            className="rounded-md"
+            // ▼▼▼ 以下4行を追加・修正 ▼▼▼
+            disabled={{ before: today }} // 今日より前の日付を無効化
+            month={currentMonth}
+            onMonthChange={setCurrentMonth} // 月の変更をハンドリング
+            modifiers={modifiers}
+            modifiersStyles={modifiersStyles}
+        />
         </div>
       </div>{" "}
       {isModalOpen && selectedDate && (

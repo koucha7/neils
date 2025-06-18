@@ -8,7 +8,7 @@ from datetime import datetime, time, timedelta, date
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db.models import Q, Sum, Count
-from django.db.models.functions import TruncMonth
+from django.db.models.functions import TruncMonth, TruncDate
 from django.utils import timezone
 from google.auth.exceptions import GoogleAuthError
 from google.oauth2 import service_account
@@ -627,3 +627,31 @@ class AdminAvailableSlotView(APIView):
         AvailableTimeSlot.objects.bulk_create(slots_to_create)
 
         return Response({'status': 'success'}, status=status.HTTP_201_CREATED)
+    
+class ConfiguredDatesView(APIView):
+    """
+    指定された年月に対応する、受付時間設定済みの日付リストを返す
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            year = int(request.query_params.get('year'))
+            month = int(request.query_params.get('month'))
+        except (TypeError, ValueError):
+            return Response({'error': 'Year and month parameters are required.'}, status=400)
+
+        # 指定された年月の、設定済みの日付を重複なく取得
+        configured_dates = AvailableTimeSlot.objects.filter(
+            date__year=year,
+            date__month=month
+        ).annotate(
+            date_only=TruncDate('date')
+        ).values_list(
+            'date_only', flat=True
+        ).distinct()
+
+        # フロントエンドで扱いやすいように日付を文字列に変換
+        date_strings = [d.strftime('%Y-%m-%d') for d in configured_dates]
+
+        return Response(date_strings)
