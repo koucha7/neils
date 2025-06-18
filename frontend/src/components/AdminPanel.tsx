@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { format, /* startOfMonth */ } from "date-fns";
+import { format /* startOfMonth */ } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import { useNavigate } from "react-router-dom";
 import StatisticsPanel from "./StatisticsPanel";
@@ -258,7 +258,7 @@ const AttendanceManagement: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [configuredDates, setConfiguredDates] = useState<Date[]>([]);
-  
+
   useEffect(() => {
     const fetchConfiguredDates = async () => {
       try {
@@ -328,25 +328,27 @@ const AttendanceManagement: React.FC = () => {
   };
 
   const today = new Date();
-  
+
   const isPastDate = (date: Date) => {
     return date < today && !isSameDay(date, today);
   };
-  
+
   // 設定済みの日付かどうかを判断する関数
   const isConfiguredDate = (date: Date) => {
-    return configuredDates.some(d => isSameDay(d, date));
+    return configuredDates.some((d) => isSameDay(d, date));
   };
-  
+
   // isSameDayヘルパー関数（日付の比較用）
   const isSameDay = (d1: Date, d2: Date) => {
-      return d1.getFullYear() === d2.getFullYear() &&
-             d1.getMonth() === d2.getMonth() &&
-             d1.getDate() === d2.getDate();
-  }
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  };
 
   // ▼▼▼ DayPickerに渡すための設定を定義 ▼▼▼
-/*   const modifiers = {
+  /*   const modifiers = {
     configured: configuredDates, // 設定済みの日付
   };
   const modifiersStyles = {
@@ -366,19 +368,19 @@ const AttendanceManagement: React.FC = () => {
         </p>
         <div className="flex justify-center">
           <DatePicker
-          selected={selectedDate}
-          onChange={handleDateClick}
-          minDate={today} // minDateで過去の日付を選択不可に
-          inline
-          locale="ja"
-          onMonthChange={(date) => setCurrentMonth(date)} // 月の変更をハンドリング
-          // 日付ごとのCSSクラスを動的に設定
-          dayClassName={date => {
-            if (isPastDate(date)) return 'past-date'; // 過去の日付用クラス
-            if (isConfiguredDate(date)) return 'configured-date'; // 設定済みの日付用クラス
-            return undefined;
-          }}
-        />
+            selected={selectedDate}
+            onChange={handleDateClick}
+            minDate={today} // minDateで過去の日付を選択不可に
+            inline
+            locale="ja"
+            onMonthChange={(date) => setCurrentMonth(date)} // 月の変更をハンドリング
+            // 日付ごとのCSSクラスを動的に設定
+            dayClassName={(date) => {
+              if (isPastDate(date)) return "past-date";
+              if (isConfiguredDate(date)) return "configured-date";
+              return ""; // undefined の代わりに空文字列を返す
+            }}
+          />
         </div>
       </div>{" "}
       {isModalOpen && selectedDate && (
@@ -456,17 +458,17 @@ const ReservationList: React.FC = () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-            if (startDate) {
-                params.append('start_date', format(startDate, 'yyyy-MM-dd'));
-            }
-            if (endDate) {
-                params.append('end_date', format(endDate, 'yyyy-MM-dd'));
-            }
-            if (selectedStatuses.length > 0) {
-                selectedStatuses.forEach(status => {
-                    params.append('status', status);
-                });
-            }
+      if (startDate) {
+        params.append("start_date", format(startDate, "yyyy-MM-dd"));
+      }
+      if (endDate) {
+        params.append("end_date", format(endDate, "yyyy-MM-dd"));
+      }
+      if (selectedStatuses.length > 0) {
+        selectedStatuses.forEach((status) => {
+          params.append("status", status);
+        });
+      }
       const response = await api.get<Reservation[]>("/api/reservations/", {
         params,
       });
@@ -908,7 +910,9 @@ const CancellationPolicyManagement: React.FC = () => {
     setSuccess(false);
     setError(null);
     try {
-      await api.patch("/api/salons/1/", { cancellation_deadline_days: deadline });
+      await api.patch("/api/salons/1/", {
+        cancellation_deadline_days: deadline,
+      });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
