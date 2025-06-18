@@ -567,8 +567,8 @@ class TimeSlotAPIView(APIView):
             return Response([], status=status.HTTP_200_OK)
 
         time_slots = []
-        start_time = datetime.datetime.combine(target_date, schedule_data['opening_time'])
-        end_time = datetime.datetime.combine(target_date, schedule_data['closing_time'])
+        start_time = datetime.combine(target_date, schedule_data['opening_time'])
+        end_time = datetime.combine(target_date, schedule_data['closing_time'])
         current_time = start_time
         while current_time < end_time:
             time_slots.append(current_time.strftime('%H:%M'))
