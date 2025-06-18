@@ -17,12 +17,21 @@ class HealthCheckAPIView(APIView):
     permission_classes = [AllowAny]
     def get(self, request, *args, **kwargs):
         return Response({"status": "ok"}, status=200)
-    
+
+# --- URLパターンの定義 ---
+# 国際化(i18n)を一旦無効にし、全てのURLをここで定義して問題を単純化します。
 urlpatterns = [
+    # 1. Django標準の管理画面
     path('admin/', admin.site.urls),
-    path('api/health/', HealthCheckAPIView.as_view(), name='health_check'), 
+
+    # 2. Render用のヘルスチェック
+    path('api/health/', HealthCheckAPIView.as_view(), name='health_check'),
+
+    # 3. 認証トークン取得用のAPI
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
+    # 4. reservationsアプリの全てのAPI
     path('api/', include('reservations.urls')),
 ]
 
