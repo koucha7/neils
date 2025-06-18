@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import Salon, Service, Reservation, WeeklyDefaultSchedule, DateSchedule, NotificationSetting
 
+admin.site.site_header = "MomoNail管理画面 - デプロイテスト成功"
 # Salon, Service, Reservation, NotificationSetting の登録
 admin.site.register(Salon)
 admin.site.register(Service)
