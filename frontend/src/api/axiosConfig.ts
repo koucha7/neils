@@ -56,7 +56,7 @@ api.interceptors.response.use(
             localStorage.removeItem('accessToken');
             localStorage.removeItem('refreshToken');
             localStorage.removeItem('isLoggedIn');
-            if (window.location.pathname !== '/admin') {
+            if (window.location.pathname.startsWith('/admin')) {
                 window.location.href = '/admin';
             }
         }

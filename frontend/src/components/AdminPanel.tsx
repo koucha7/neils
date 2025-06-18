@@ -262,7 +262,7 @@ const AttendanceManagement: React.FC = () => {
     setIsSubmitting(true);
     try {
       const dateStr = format(date, "yyyy-MM-dd");
-      const response = await api.get("admin-api/available-slots/", {
+      const response = await api.get("/api/available-slots/", {
         params: { date: dateStr },
       });
       setTimeSlots(response.data);
@@ -291,7 +291,7 @@ const AttendanceManagement: React.FC = () => {
         .filter((slot) => slot.is_available)
         .map((slot) => slot.time);
       const dateStr = format(selectedDate, "yyyy-MM-dd");
-      await api.post("admin-api/available-slots/", {
+      await api.post("/api/available-slots/", {
         date: dateStr,
         times: availableTimes,
       });
