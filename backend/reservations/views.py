@@ -15,7 +15,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import HttpResponse
@@ -592,7 +592,7 @@ class AdminAvailableSlotView(APIView):
     """
     管理画面で、特定の日付の予約可能時間枠を管理するためのAPI
     """
-    permission_classes = [IsAdminUser] # 管理者のみがアクセス可能
+    permission_classes = [IsAuthenticated] 
 
     def get(self, request, *args, **kwargs):
         """
