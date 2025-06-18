@@ -192,7 +192,7 @@ const ServiceAndReservationPicker: React.FC = () => {
         customer_email: customerEmail,
         customer_phone: customerPhone,
       };
-      const response = await api.post("/reservations/", reservationData);
+      const response = await api.post("/api/reservations/", reservationData);
       navigate(`/reservation-complete/${response.data.reservation_number}`);
     } catch (err) {
       console.error("Failed to create reservation:", err);
@@ -473,10 +473,8 @@ const ServiceAndReservationPicker: React.FC = () => {
                   キャンセルポリシー
                 </h4>
                 <p className="text-sm text-yellow-700 mt-1">
-                  ご予約のキャンセルは、予約日の
                   <strong>{salon.cancellation_deadline_days}日前</strong>
-                  まで可能です。
-                  これ以降のキャンセルは直接店舗にご連絡ください。
+                  キャンセルは直接店舗にご連絡ください。
                 </p>
               </div>
 
