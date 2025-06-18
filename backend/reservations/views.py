@@ -592,7 +592,8 @@ class AdminAvailableSlotView(APIView):
     """
     管理画面で、特定の日付の予約可能時間枠を管理するためのAPI
     """
-    permission_classes = [IsAuthenticated] 
+    authentication_classes = []  # 認証を無効化
+    permission_classes = [AllowAny]    # 全てのアクセスを許可
 
     def get(self, request, *args, **kwargs):
         """
