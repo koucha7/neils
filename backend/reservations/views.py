@@ -592,20 +592,50 @@ class AdminAvailableSlotView(APIView):
     """
     管理画面で、特定の日付の予約可能時間枠を管理するためのAPI
     """
-    authentication_classes = []  # 認証を無効化
-    permission_classes = [AllowAny]    # 全てのアクセスを許可
+    permission_classes = [IsAuthenticated] 
 
-    def dispatch(self, request, *args, **kwargs):
-        # 本来の処理をまず実行する
-        response = super().dispatch(request, *args, **kwargs)
-        # その応答に、目印となるカスタムヘッダーを追加する
-        response['X-View-Executed'] = 'AdminAvailableSlotView-was-executed'
-        return response
-    
     def get(self, request, *args, **kwargs):
-       
-        return Response({"message": "Test successful: AdminAvailableSlotView was reached!"}, status=200)
+        """
+        指定された日付の、設定可能な時間枠の一覧と、
+        すでに設定済みの時間枠の情報を返す
+        """
+        date_str = request.query_params.get('date')
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # その日に設定されている予約可能時間枠を取得
+        saved_slots = set(slot.time for slot in AvailableTimeSlot.objects.filter(date=target_date))
+
+        # 9:00から21:00まで30分ごとの時間枠を生成（ここは実態に合わせて変更してください）
+        response_data = []
+        current_time = datetime.strptime("09:00", "%H:%M").time()
+        end_time = datetime.strptime("21:00", "%H:%M").time()
+        
+        while current_time <= end_time:
+            response_data.append({
+                "time": current_time.strftime('%H:%M'),
+                "is_available": current_time in saved_slots
+            })
+            # 時間を30分進める
+            current_time = (datetime.combine(target_date, current_time) + timedelta(minutes=30)).time()
+
+        return Response(response_data)
 
     def post(self, request, *args, **kwargs):
-        # ★★★ テストのため、元のロジックをすべて置き換える ★★★
-        return Response({"message": "POST method test successful!"}, status=200)
+        """
+        指定された日付の予約可能時間枠を、受け取ったデータで上書きする
+        """
+        date_str = request.data.get('date')
+        times = request.data.get('times', []) # ["09:00", "10:30", ...] のようなリスト
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+        # その日の既存の設定をすべて削除
+        AvailableTimeSlot.objects.filter(date=target_date).delete()
+
+        # 新しい設定をまとめて作成
+        slots_to_create = [
+            AvailableTimeSlot(date=target_date, time=datetime.strptime(t, '%H:%M').time())
+            for t in times
+        ]
+        AvailableTimeSlot.objects.bulk_create(slots_to_create)
+
+        return Response({'status': 'success'}, status=status.HTTP_201_CREATED)
