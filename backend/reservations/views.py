@@ -595,6 +595,13 @@ class AdminAvailableSlotView(APIView):
     authentication_classes = []  # 認証を無効化
     permission_classes = [AllowAny]    # 全てのアクセスを許可
 
+    def dispatch(self, request, *args, **kwargs):
+        # 本来の処理をまず実行する
+        response = super().dispatch(request, *args, **kwargs)
+        # その応答に、目印となるカスタムヘッダーを追加する
+        response['X-View-Executed'] = 'AdminAvailableSlotView-was-executed'
+        return response
+    
     def get(self, request, *args, **kwargs):
        
         return Response({"message": "Test successful: AdminAvailableSlotView was reached!"}, status=200)
