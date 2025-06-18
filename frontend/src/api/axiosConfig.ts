@@ -24,7 +24,7 @@ api.interceptors.request.use(
             config.headers['Authorization'] = `Bearer ${token}`;
         }
 
-        if (config.url) {
+        /* if (config.url) {
             const lang = localStorage.getItem('language') || 'ja';
             
             // 国際化対象のURLの場合のみ言語プレフィックスを付与
@@ -37,7 +37,7 @@ api.interceptors.request.use(
             ) {
                  config.url = `/${lang}${config.url}`;
             }
-        }
+        } */
         return config;
     },
     (error) => {
