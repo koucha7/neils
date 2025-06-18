@@ -87,7 +87,7 @@ const ServiceAndReservationPicker: React.FC = () => {
 
         try {
             const formattedDate = format(date, 'yyyy-MM-dd');
-            const response = await api.get<string[]>(`/api/availability/?date=${formattedDate}`);
+            const response = await api.get<string[]>(`/api/time-slots/?date=${formattedDate}`);
 
             if (response.data.length > 0) {
                 setAvailableTimeSlots(response.data);
