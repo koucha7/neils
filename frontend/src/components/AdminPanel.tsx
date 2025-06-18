@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { format, startOfMonth } from "date-fns";
+import { format, /* startOfMonth */ } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import { useNavigate } from "react-router-dom";
 import StatisticsPanel from "./StatisticsPanel";
@@ -328,9 +328,25 @@ const AttendanceManagement: React.FC = () => {
   };
 
   const today = new Date();
+  
+  const isPastDate = (date: Date) => {
+    return date < today && !isSameDay(date, today);
+  };
+  
+  // 設定済みの日付かどうかを判断する関数
+  const isConfiguredDate = (date: Date) => {
+    return configuredDates.some(d => isSameDay(d, date));
+  };
+  
+  // isSameDayヘルパー関数（日付の比較用）
+  const isSameDay = (d1: Date, d2: Date) => {
+      return d1.getFullYear() === d2.getFullYear() &&
+             d1.getMonth() === d2.getMonth() &&
+             d1.getDate() === d2.getDate();
+  }
 
   // ▼▼▼ DayPickerに渡すための設定を定義 ▼▼▼
-  const modifiers = {
+/*   const modifiers = {
     configured: configuredDates, // 設定済みの日付
   };
   const modifiersStyles = {
@@ -339,7 +355,7 @@ const AttendanceManagement: React.FC = () => {
       backgroundColor: "#dcfce7", // 例：薄い緑色
       color: "#166534",
     },
-  };
+  }; */
 
   return (
     <div>
@@ -349,17 +365,19 @@ const AttendanceManagement: React.FC = () => {
           カレンダーの日付をクリックして、予約を受け付ける30分単位の時間枠を個別に設定します。
         </p>
         <div className="flex justify-center">
-          <DayPicker
-            mode="single"
-            selected={selectedDate || undefined}
-            onSelect={handleDateClick}
-            className="rounded-md"
-            // ▼▼▼ 以下4行を追加・修正 ▼▼▼
-            disabled={{ before: today }} // 今日より前の日付を無効化
-            month={currentMonth}
-            onMonthChange={setCurrentMonth} // 月の変更をハンドリング
-            modifiers={modifiers}
-            modifiersStyles={modifiersStyles}
+          <DatePicker
+          selected={selectedDate}
+          onChange={handleDateClick}
+          minDate={today} // minDateで過去の日付を選択不可に
+          inline
+          locale="ja"
+          onMonthChange={(date) => setCurrentMonth(date)} // 月の変更をハンドリング
+          // 日付ごとのCSSクラスを動的に設定
+          dayClassName={date => {
+            if (isPastDate(date)) return 'past-date'; // 過去の日付用クラス
+            if (isConfiguredDate(date)) return 'configured-date'; // 設定済みの日付用クラス
+            return undefined;
+          }}
         />
         </div>
       </div>{" "}

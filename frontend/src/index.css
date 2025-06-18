@@ -48,3 +48,15 @@ body {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.react-datepicker__day--disabled, .past-date {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 設定済みの日付 */
+.configured-date {
+  background-color: #dcfce7; /* 薄い緑色 */
+  color: #166534;
+  border-radius: 50%; /* 円形にする */
+}

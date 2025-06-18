@@ -1,5 +1,5 @@
 import os
-import requests
+""" import requests """
 import uuid
 import calendar
 from .models import Service, Reservation, WeeklyDefaultSchedule, DateSchedule, NotificationSetting, AvailableTimeSlot
@@ -18,8 +18,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.http import HttpResponse
-from django.urls import get_resolver
+""" from django.http import HttpResponse
+from django.urls import get_resolver """
 
 
 from .models import (
