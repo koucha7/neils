@@ -539,7 +539,7 @@ class TimeSlotAPIView(APIView):
             return Response({'error': 'Date parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
 
