@@ -1,25 +1,25 @@
-import React, { useState, useEffect, useCallback } from "react";
-import api from "../api/axiosConfig";
 import axios from "axios";
-import {
-  Calendar,
-  Users,
-  Scissors,
-  LogOut,
-  Bell,
-  Shield,
-  PlusCircle,
-  Edit,
-  Trash2,
-  Menu as MenuIcon,
-  X,
-  BarChart3,
-} from "lucide-react";
-import DatePicker, { registerLocale } from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import { format /* startOfMonth */ } from "date-fns";
 import { ja } from "date-fns/locale/ja";
+import {
+  BarChart3,
+  Bell,
+  Calendar,
+  Edit,
+  LogOut,
+  Menu as MenuIcon,
+  PlusCircle,
+  Scissors,
+  Shield,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import DatePicker, { registerLocale } from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import { useNavigate } from "react-router-dom";
+import api from "../api/axiosConfig";
 import StatisticsPanel from "./StatisticsPanel";
 
 registerLocale("ja", ja);
@@ -271,12 +271,14 @@ const AttendanceManagement: React.FC = () => {
     } catch (error) {
       console.error("設定済み日付の取得に失敗しました:", error);
     }
-  }, []); // この関数の依存配列は空でOKです
+  }, []);
 
+  // 月の変更時に設定済み日付を再取得
   useEffect(() => {
     fetchConfiguredDates(currentMonth);
   }, [currentMonth, fetchConfiguredDates]);
 
+  // 日付クリックハンドラー
   const handleDateClick = async (date: Date | null) => {
     if (!date) return;
     setSelectedDate(date);
@@ -304,6 +306,8 @@ const AttendanceManagement: React.FC = () => {
       )
     );
   };
+
+  // 保存ボタンのハンドラー
   const handleSave = async () => {
     if (!selectedDate) return;
     setIsSubmitting(true);
@@ -312,15 +316,21 @@ const AttendanceManagement: React.FC = () => {
         .filter((slot) => slot.is_available)
         .map((slot) => slot.time);
       const dateStr = format(selectedDate, "yyyy-MM-dd");
+
       await api.post("/api/admin/available-slots/", {
         date: dateStr,
         times: availableTimes,
       });
+
       setIsModalOpen(false);
       alert("保存しました。");
+
+      // ▼▼▼ この一行を追加 ▼▼▼
+      // 保存後に設定済み日付のリストを再取得してカレンダーを更新します
+      fetchConfiguredDates(currentMonth);
     } catch (error) {
-      alert("保存に失敗しました。");
-      console.error(error);
+      console.error("受付時間の設定に失敗しました。", error);
+      alert("設定の保存に失敗しました。");
     } finally {
       setIsSubmitting(false);
     }
@@ -1179,5 +1189,4 @@ const AdminPanel: React.FC = () => {
   );
 };
 
-// ★★★ 最後にAdminPanelをデフォルトエクスポートする ★★★
 export default AdminPanel;

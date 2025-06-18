@@ -16,6 +16,7 @@ from .views import (
     TimeSlotAPIView,
     AdminAvailableSlotView, 
     ConfiguredDatesView,
+    BookableDatesView,
     MonthlyScheduleAdminView
 )
 
@@ -34,6 +35,7 @@ urlpatterns += [
     path('notification-settings/', NotificationSettingAPIView.as_view(), name='notification-settings'),
     path('statistics/', StatisticsView.as_view(), name='statistics'),
     path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'),
+    path('bookable-dates/', BookableDatesView.as_view(), name='bookable-dates'),
 
     # ↓↓↓↓ 管理用のAPIパスをこちらに集約します ↓↓↓↓
     path('admin/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'),
