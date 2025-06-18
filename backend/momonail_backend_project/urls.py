@@ -27,5 +27,4 @@ urlpatterns += i18n_patterns(
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/', include('reservations.urls')),
-    prefix_default_language=False,
 )
