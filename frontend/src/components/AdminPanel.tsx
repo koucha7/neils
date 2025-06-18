@@ -259,24 +259,23 @@ const AttendanceManagement: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [configuredDates, setConfiguredDates] = useState<Date[]>([]);
 
-  useEffect(() => {
-    const fetchConfiguredDates = async () => {
-      try {
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth() + 1; // getMonthは0始まりなので+1
-        const response = await api.get("/api/admin/configured-dates/", {
-          params: { year, month },
-        });
-        // 文字列の日付をDateオブジェクトに変換
-        const dates = response.data.map((dateStr: string) => new Date(dateStr));
-        setConfiguredDates(dates);
-      } catch (error) {
-        console.error("設定済み日付の取得に失敗しました:", error);
-      }
-    };
+  const fetchConfiguredDates = useCallback(async (month: Date) => {
+    try {
+      const year = month.getFullYear();
+      const monthNum = month.getMonth() + 1;
+      const response = await api.get("/api/admin/configured-dates/", {
+        params: { year, month: monthNum },
+      });
+      const dates = response.data.map((dateStr: string) => new Date(dateStr));
+      setConfiguredDates(dates);
+    } catch (error) {
+      console.error("設定済み日付の取得に失敗しました:", error);
+    }
+  }, []); // この関数の依存配列は空でOKです
 
-    fetchConfiguredDates();
-  }, [currentMonth]); // currentMonthが変更されたら再実行
+  useEffect(() => {
+    fetchConfiguredDates(currentMonth);
+  }, [currentMonth, fetchConfiguredDates]);
 
   const handleDateClick = async (date: Date | null) => {
     if (!date) return;

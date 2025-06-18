@@ -655,3 +655,32 @@ class ConfiguredDatesView(APIView):
         date_strings = [d.strftime('%Y-%m-%d') for d in configured_dates]
 
         return Response(date_strings)
+    
+class BookableDatesView(APIView):
+    """
+    顧客向けに、指定された年月に対応する予約可能な日付のリストを返す。
+    （受付時間が1つでも設定されていれば予約可能とみなす）
+    """
+    permission_classes = [AllowAny] # 誰でもアクセス可能
+
+    def get(self, request, *args, **kwargs):
+        try:
+            year = int(request.query_params.get('year'))
+            month = int(request.query_params.get('month'))
+        except (TypeError, ValueError):
+            return Response({'error': 'Year and month parameters are required.'}, status=400)
+
+        # 指定された年月の、受付時間が設定されている日付を重複なく取得
+        bookable_dates = AvailableTimeSlot.objects.filter(
+            date__year=year,
+            date__month=month
+        ).annotate(
+            date_only=TruncDate('date')
+        ).values_list(
+            'date_only', flat=True
+        ).distinct()
+
+        # 日付オブジェクトを 'YYYY-MM-DD' 形式の文字列に変換
+        date_strings = [d.strftime('%Y-%m-%d') for d in bookable_dates]
+
+        return Response(date_strings)
