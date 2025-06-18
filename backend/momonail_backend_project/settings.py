@@ -32,12 +32,6 @@ DATABASES = {
     )
 }
 
-# CORS設定 (settings.py のどこか)
-# INSTALLED_APPS と MIDDLEWARE に 'corsheaders' が含まれていることを確認
-CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
-# 本番環境ではフロントエンドの公開URLを設定 (Renderで設定)
-# 例: CORS_ALLOWED_ORIGINS = ['https://your-frontend-app.onrender.com']
-
 # 静的ファイル設定 (本番用)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # 'staticfiles' ディレクトリに収集
@@ -126,3 +120,14 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # アクセストークンの有効期間
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),   # リフレッシュトークンの有効期間
 }
+
+# 環境変数からCORS許可オリジンを取得
+CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',') if CORS_ALLOWED_ORIGINS_STR.strip() else []
+
+# 開発モード（DEBUG=True）の場合、ローカルのフロントエンドを許可リストに追加
+if DEBUG:
+    CORS_ALLOWED_ORIGINS.extend([
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ])
