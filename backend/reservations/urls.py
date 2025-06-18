@@ -3,7 +3,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import SalonViewSet, ServiceViewSet # salonだけをインポート
-""" from .views import (
+from .views import (
     SalonViewSet,
     ServiceViewSet,
     StatisticsView,
@@ -17,19 +17,18 @@ from .views import SalonViewSet, ServiceViewSet # salonだけをインポート
     # ↓↓↓ 管理用ビューのインポートを追加 ↓↓↓
     AdminAvailableSlotView, 
     MonthlyScheduleAdminView
-) """
+)
 
 router = DefaultRouter()
 router.register(r'salons', SalonViewSet, basename='salon')
 router.register(r'services', ServiceViewSet, basename='service')
-""" router.register(r'services', ServiceViewSet, basename='service')
 router.register(r'reservations', ReservationViewSet, basename='reservation')
 router.register(r'weekly-schedules', WeeklyDefaultScheduleViewSet, basename='weeklyschedule')
 router.register(r'date-schedules', DateScheduleViewSet, basename='dateschedule')
- """
+
 urlpatterns = router.urls
 
-""" urlpatterns += [
+urlpatterns += [
     path('availability/', AvailabilityCheckAPIView.as_view(), name='availability-check'),
     path('monthly-availability/', MonthlyAvailabilityCheckAPIView.as_view(), name='monthly-availability-check'),
     path('notification-settings/', NotificationSettingAPIView.as_view(), name='notification-settings'),
@@ -39,4 +38,4 @@ urlpatterns = router.urls
     # ↓↓↓↓ 管理用のAPIパスをこちらに集約します ↓↓↓↓
     path('admin/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'),
     path('admin/monthly-schedules/', MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedules'),
-] """
+]
