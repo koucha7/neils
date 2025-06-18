@@ -539,7 +539,7 @@ class TimeSlotAPIView(APIView):
             return Response({'error': 'Date parameter is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            target_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -567,12 +567,12 @@ class TimeSlotAPIView(APIView):
             return Response([], status=status.HTTP_200_OK)
 
         time_slots = []
-        start_time = datetime.datetime.combine(target_date, schedule_data['opening_time'])
-        end_time = datetime.datetime.combine(target_date, schedule_data['closing_time'])
+        start_time = datetime.combine(target_date, schedule_data['opening_time'])
+        end_time = datetime.combine(target_date, schedule_data['closing_time'])
         current_time = start_time
         while current_time < end_time:
             time_slots.append(current_time.strftime('%H:%M'))
-            current_time += datetime.timedelta(minutes=30)
+            current_time += timedelta(minutes=30)
             
         return Response(time_slots, status=status.HTTP_200_OK)
     
