@@ -91,11 +91,11 @@ TEMPLATES = [
 # REST Frameworkの設定
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        # APIへのアクセスはJWT認証を基本とする
+        # ▼▼▼ この行を追加 ▼▼▼
+        'rest_framework.authentication.SessionAuthentication',
+        # ▲▲▲ この行を追加 ▲▲▲
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    # ★★★ この行を追加 ★★★
-    # 認証エンドポイントでは、標準のセッション認証も許可する
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
