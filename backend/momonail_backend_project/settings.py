@@ -126,6 +126,3 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # アクセストークンの有効期間
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),   # リフレッシュトークンの有効期間
 }
-
-# 環境変数からCORS許可オリジンを取得し、リストに変換
-CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
