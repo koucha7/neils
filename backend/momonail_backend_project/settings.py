@@ -54,12 +54,12 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # ★この位置を確認★
+    'corsheaders.middleware.CorsMiddleware', # ここに厳密に配置
+    'whitenoise.middleware.WhiteNoiseMiddleware', # このミドルウェアはDjangoアプリが静的ファイルを配信する時に使われます
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware', 
     'django.middleware.common.CommonMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # ★この位置を確認★
-    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware', # CORSがCSRFより前にあることを確認
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
