@@ -59,7 +59,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware', 
     'django.middleware.common.CommonMiddleware',
-    #'django.middleware.csrf.CsrfViewMiddleware', # CORSがCSRFより前にあることを確認
+    # 'django.middleware.csrf.CsrfViewMiddleware', # CORSがCSRFより前にあることを確認
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -91,9 +91,7 @@ TEMPLATES = [
 # REST Frameworkの設定
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        # ▼▼▼ この行を追加 ▼▼▼
         'rest_framework.authentication.SessionAuthentication',
-        # ▲▲▲ この行を追加 ▲▲▲
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
@@ -122,10 +120,11 @@ SIMPLE_JWT = {
 }
 
 # 環境変数からCORS許可オリジンを取得
-CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+""" CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',') if CORS_ALLOWED_ORIGINS_STR.strip() else []
-
+ """
 # 開発モード（DEBUG=True）の場合、ローカルのフロントエンドを許可リストに追加
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+DEBUG = True
+CORS_ALLOW_ALL_ORIGINS = True
+ALLOWED_HOSTS = ['*']
 LOGIN_URL = '/api/token/' 

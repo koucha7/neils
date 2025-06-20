@@ -2,7 +2,7 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import SalonViewSet, ServiceViewSet # salonだけをインポート
+from django.views.decorators.csrf import csrf_exempt
 from .views import (
     SalonViewSet,
     ServiceViewSet,
@@ -17,6 +17,7 @@ from .views import (
     AdminAvailableSlotView, 
     ConfiguredDatesView,
     BookableDatesView,
+    LineLoginCallbackView,
     MonthlyScheduleAdminView
 )
 
@@ -36,6 +37,7 @@ urlpatterns += [
     path('statistics/', StatisticsView.as_view(), name='statistics'),
     path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'),
     path('bookable-dates/', BookableDatesView.as_view(), name='bookable-dates'),
+    path('auth/line/callback/', csrf_exempt(LineLoginCallbackView.as_view()), name='line-callback'),
 
     # ↓↓↓↓ 管理用のAPIパスをこちらに集約します ↓↓↓↓
     path('admin/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'),

@@ -2,8 +2,9 @@ import os
 """ import requests """
 import uuid
 import calendar
-from .models import Service, Reservation, WeeklyDefaultSchedule, DateSchedule, NotificationSetting, AvailableTimeSlot
-from .serializers import NotificationSettingSerializer
+import requests
+from .models import Service, Reservation, WeeklyDefaultSchedule, DateSchedule, NotificationSetting, AvailableTimeSlot, Customer
+from .serializers import NotificationSettingSerializer, CustomerSerializer
 from datetime import datetime, time, timedelta, date
 from django.conf import settings
 from django.core.mail import send_mail
@@ -18,9 +19,15 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-""" from django.http import HttpResponse
-from django.urls import get_resolver """
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from dotenv import load_dotenv
+from pathlib import Path
 
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 from .models import (
     DateSchedule,
@@ -41,7 +48,6 @@ from .serializers import (
     WeeklyDefaultScheduleSerializer,
 )
 
-
 class SalonViewSet(viewsets.ModelViewSet):
     queryset = Salon.objects.all()
     serializer_class = SalonSerializer
@@ -53,12 +59,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
     serializer_class = ServiceSerializer
     permission_classes = [AllowAny] # ★追加
 
-
 class WeeklyDefaultScheduleViewSet(viewsets.ModelViewSet):
     queryset = WeeklyDefaultSchedule.objects.all()
     serializer_class = WeeklyDefaultScheduleSerializer
     permission_classes = [IsAuthenticated] # ★追加
-
 
 class DateScheduleViewSet(viewsets.ModelViewSet):
     queryset = DateSchedule.objects.all()
@@ -96,9 +100,8 @@ class DateScheduleViewSet(viewsets.ModelViewSet):
                 )
         return super().update(request, *args, **kwargs)
 
-
 class ReservationViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated] # ★追加
+    permission_classes = [AllowAny] # ★追加
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
     lookup_field = "reservation_number"
@@ -143,13 +146,32 @@ class ReservationViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        
+        # --- 顧客情報の取得または作成 ---
+        customer_email = serializer.validated_data.get('customer.email')
+        customer_name = serializer.validated_data.get('customer.name')
+        customer_phone = serializer.validated_data.get('customer.phone')
+
+        # メールアドレスを元に顧客を検索し、存在しなければ新しく作成する
+        customer, created = Customer.objects.get_or_create(
+            email=customer.email,
+            defaults={
+                'name': customer.name,
+                'phone_number': customer.phone,
+            }
+        )
+        # ----------------------------
 
         service = serializer.validated_data["service"]
         start_time = serializer.validated_data["start_time"]
         end_time = start_time + timedelta(minutes=service.duration_minutes)
 
-        reservation = serializer.save(
-            reservation_number=str(uuid.uuid4()).replace("-", "")[:10].upper(),
+        # 予約を作成。customerフィールドに取得or作成した顧客オブジェクトをセット
+        reservation = Reservation.objects.create(
+            customer=customer,
+            salon=serializer.validated_data["salon"],
+            service=service,
+            start_time=start_time,
             end_time=end_time,
             status="pending",
         )
@@ -158,7 +180,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
             message = (
                 f"新しい予約が入りました！\n\n"
                 f"予約番号: {reservation.reservation_number}\n"
-                f"お名前: {reservation.customer_name}様\n"
+                f"お名前: {reservation.customer.name}様\n"
                 f"日時: {reservation.start_time.strftime('%Y-%m-%d %H:%M')}\n"
                 f"サービス: {reservation.service.name}\n\n"
                 f"▼予約詳細・確定はこちら\n"
@@ -171,7 +193,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         try:
             subject = f"【MomoNail】ご予約ありがとうございます（お申込内容の確認）"
             message = (
-                f"{reservation.customer_name}様\n\n"
+                f"{reservation.customer.name}様\n\n"
                 f"この度は、MomoNailにご予約いただき、誠にありがとうございます。\n"
                 f"以下の内容でご予約を承りました。ネイリストが内容を確認後、改めて「予約確定メール」をお送りしますので、今しばらくお待ちください。\n\n"
                 f"--- ご予約内容 ---\n"
@@ -183,8 +205,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 f"https://momonail-frontend.onrender.com/check\n\n"
                 f"MomoNail"
             )
+
             from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@momonail.com")
-            recipient_list = [reservation.customer_email]
+            recipient_list = [reservation.customer.email]
             send_mail(subject, message, from_email, recipient_list)
         except Exception as e:
             print(f"Failed to send reservation received email: {e}")
@@ -219,7 +242,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         try:
             subject = f"【MomoNail】ご予約が確定いたしました"
             message = (
-                f"{reservation.customer_name}様\n\n"
+                f"{reservation.customer.name}様\n\n"
                 f"お申し込みいただいた以下の内容で、ご予約が確定いたしました。\n"
                 f"ご来店を心よりお待ちしております。\n\n"
                 f"--- ご予約内容 ---\n"
@@ -233,7 +256,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 f"MomoNail"
             )
             from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@momonail.com")
-            recipient_list = [reservation.customer_email]
+            recipient_list = [reservation.customer.email]
             send_mail(subject, message, from_email, recipient_list)
         except Exception as e:
             print(f"Failed to send reservation confirmed email: {e}")
@@ -277,11 +300,11 @@ class ReservationViewSet(viewsets.ModelViewSet):
             
         service = build('calendar', 'v3', credentials=creds)
         event = {
-            'summary': f"【予約】{reservation.customer_name}様",
+            'summary': f"【予約】{reservation.customer.name}様",
             'description': (
                 f"サービス: {reservation.service.name}\n"
                 f"予約番号: {reservation.reservation_number}\n"
-                f"連絡先: {reservation.customer_email or 'N/A'}"
+                f"連絡先: {reservation.customer.email or 'N/A'}"
             ),
             'start': {
                 'dateTime': reservation.start_time.isoformat(),
@@ -348,8 +371,7 @@ class AvailabilityCheckAPIView(APIView):
                 final_slots.append(slot.time.strftime('%H:%M'))
                 
         return Response(final_slots)
-    
-#
+ 
 class MonthlyAvailabilityCheckAPIView(APIView):
     permission_classes = [AllowAny] # ★追加
     def get(self, request, *args, **kwargs):
@@ -535,6 +557,7 @@ class TimeSlotAPIView(APIView):
     """
     指定された日付の営業時間から、30分単位の時間枠リストを返すAPI。(修正版)
     """
+    permission_classes = [AllowAny] # ★追加
     def get(self, request, *args, **kwargs):
         date_str = request.query_params.get('date')
         if not date_str:
@@ -686,3 +709,80 @@ class BookableDatesView(APIView):
         date_strings = [d.strftime('%Y-%m-%d') for d in bookable_dates]
 
         return Response(date_strings)
+
+class LineLoginCallbackView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        code = request.data.get('code')
+        if not code:
+            return Response({'error': 'Code not provided'}, status=400)
+
+        # 1. 受け取ったコードをアクセストークンに交換
+        token_url = 'https://api.line.me/oauth2/v2.1/token'
+        
+        # ▼▼▼ デバッグのために、送信するデータを組み立てる ▼▼▼
+        redirect_uri = os.environ.get('LINE_CALLBACK_URL')
+        client_id = os.environ.get('LINE_LOGIN_CHANNEL_ID')
+        client_secret = os.environ.get('LINE_LOGIN_CHANNEL_SECRET')
+        
+        token_payload = {
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': redirect_uri,
+            'client_id': client_id,
+            'client_secret': client_secret,
+        }
+        
+        print("--- DEBUG: Sending data to LINE token endpoint ---")
+        print(f"Callback URL from env: {redirect_uri}")
+        print(f"Channel ID from env: {client_id}")
+        print(f"Secret is present: {bool(client_secret)}") # シークレット自体は表示せず、存在有無のみ確認
+        print("Payload being sent:", token_payload)
+        print("-------------------------------------------------")
+        
+        token_response = requests.post(token_url, data=token_payload)
+        
+        if token_response.status_code != 200:
+            # LINEサーバーからのエラー応答もログに出力
+            print("--- ERROR: Response from LINE server ---")
+            print(f"Status Code: {token_response.status_code}")
+            print(f"Response Body: {token_response.text}")
+            print("-----------------------------------------")
+            return Response(token_response.json(), status=token_response.status_code)
+        
+        id_token = token_response.json().get('id_token')
+        
+        # 2. IDトークンを検証してユーザープロフィールを取得
+        verify_url = 'https://api.line.me/oauth2/v2.1/verify'
+        verify_payload = {'id_token': id_token, 'client_id': os.environ.get('LINE_LOGIN_CHANNEL_ID')}
+        verify_response = requests.post(verify_url, data=verify_payload)
+        
+        if verify_response.status_code != 200:
+            return Response(verify_response.json(), status=verify_response.status_code)
+
+        profile = verify_response.json()
+        line_user_id = profile.get('sub')
+        display_name = profile.get('name')
+        picture_url = profile.get('picture')
+        email = profile.get('email')
+
+        # 3. 顧客情報をデータベースに保存または更新
+        customer, created = Customer.objects.update_or_create(
+            line_user_id=line_user_id,
+            defaults={
+                'name': display_name,
+                'email': email,
+                'line_display_name': display_name,
+                'line_picture_url': picture_url,
+            }
+        )
+        
+        # 4. このWebアプリ専用の認証トークン(JWT)を生成
+        refresh = RefreshToken.for_user(customer)
+        
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'customer': CustomerSerializer(customer).data
+        })

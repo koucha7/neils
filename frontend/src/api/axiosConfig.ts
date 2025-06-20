@@ -24,20 +24,6 @@ api.interceptors.request.use(
             config.headers['Authorization'] = `Bearer ${token}`;
         }
 
-        /* if (config.url) {
-            const lang = localStorage.getItem('language') || 'ja';
-            
-            // 国際化対象のURLの場合のみ言語プレフィックスを付与
-            if (
-                config.url.startsWith('/api/') && 
-                !config.url.startsWith('/api/admin/') && 
-                // ↓↓↓↓ この行を削除またはコメントアウトします ↓↓↓↓
-                // !config.url.startsWith('/api/token') && 
-                !config.url.startsWith('/api/health')
-            ) {
-                 config.url = `/${lang}${config.url}`;
-            }
-        } */
         return config;
     },
     (error) => {

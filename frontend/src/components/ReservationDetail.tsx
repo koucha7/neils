@@ -41,7 +41,7 @@ const ReservationDetail: React.FC = () => {
         }
         setLoading(true);
         try {
-            const response = await api.get<Reservation>(`/reservations/${reservationNumber}/`);
+            const response = await api.get<Reservation>(`/api/reservations/${reservationNumber}/`);
             setReservation(response.data);
         } catch (err) {
             setError('予約情報の取得に失敗しました。');
@@ -63,7 +63,7 @@ const ReservationDetail: React.FC = () => {
         if (!reservation) return;
         if (!window.confirm(`${reservation.reservation_number} の予約を確定しますか？`)) return;
         try {
-            await api.post(`/reservations/${reservation.reservation_number}/confirm/`);
+            await api.post(`/api/reservations/${reservation.reservation_number}/confirm/`);
             // 成功したらデータを再取得して画面を更新
             fetchReservation();
         } catch (err) {
@@ -75,7 +75,7 @@ const ReservationDetail: React.FC = () => {
         if (!reservation) return;
         if (!window.confirm(`${reservation.reservation_number} の予約をキャンセルしますか？`)) return;
         try {
-            await api.post(`/reservations/${reservation.reservation_number}/cancel/`);
+            await api.post(`/api/reservations/${reservation.reservation_number}/cancel/`);
             // 成功したらデータを再取得して画面を更新
             fetchReservation();
         } catch (err) {

@@ -56,6 +56,15 @@ const ServiceAndReservationPicker: React.FC = () => {
     return bookableDates.includes(formattedDate);
   };
 
+/*   const handleLineLogin = () => {
+    const state = "YOUR_RANDOM_STATE_STRING"; // CSRF対策のランダムな文字列
+    localStorage.setItem("line_login_state", state);
+    
+    const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${import.meta.env.VITE_LINE_LOGIN_CHANNEL_ID}&redirect_uri=${import.meta.env.VITE_LINE_CALLBACK_URL}&state=${state}&scope=openid%20profile%20email`;
+    
+    window.location.href = lineLoginUrl;
+}; */
+
   // Effect Hook for initial data fetching
   useEffect(() => {
     const fetchInitialData = async () => {

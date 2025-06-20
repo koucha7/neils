@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import timedelta
+import uuid #
 
 class Salon(models.Model):
     class Meta:
@@ -62,26 +63,55 @@ class Service(models.Model):
 
     def __str__(self):
         return f"{self.salon.name} - {self.name}"
-
-class Reservation(models.Model):
-    customer_name = models.CharField(max_length=100)
-    customer_phone = models.CharField(max_length=20, blank=True, null=True)
-    customer_email = models.EmailField()
-    salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='reservations')
-    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='reservations')
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField(null=True, blank=True)
-    reservation_number = models.CharField(max_length=20, unique=True)
-    status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('confirmed', 'Confirmed'), ('cancelled', 'Cancelled'), ('completed', 'Completed')], default='pending')
-    created_at = models.DateTimeField(auto_now_add=True)
+    
+class Customer(models.Model):
+    """
+    顧客情報を格納するモデル。
+    """
+    # ユーザー指定の必須フィールド
+    name = models.CharField("氏名", max_length=100)
+    email = models.EmailField(
+        'メールアドレス', 
+        null=True,
+        blank=True,
+        help_text="顧客を一意に識別するために使用します。"
+    )
+    phone_number = models.CharField("電話番号", max_length=20, blank=True)
+    
+    # LINE連携情報
+    line_user_id = models.CharField(
+        "LINEユーザーID", 
+        max_length=255, 
+        unique=True, 
+        null=True, 
+        blank=True, 
+        db_index=True, 
+        help_text="LINEでの通知や連携に使用する一意のIDです。"
+    )
+    
+    # あると便利な追加情報
+    line_display_name = models.CharField("LINE表示名", max_length=100, blank=True, help_text="LINEプロフィールの表示名です。")
+    line_picture_url = models.URLField("LINEプロフィール画像URL", max_length=2048, blank=True)
+    notes = models.TextField("備考", blank=True, help_text="顧客に関するメモなどを記載します。")
+    created_at = models.DateTimeField("作成日時", auto_now_add=True)
+    updated_at = models.DateTimeField("更新日時", auto_now=True)
 
     def __str__(self):
-        return f"予約ID: {self.reservation_number} ({self.customer_name} at {self.salon.name} on {self.start_time})"
+        return self.name
 
-    def save(self, *args, **kwargs):
-        if not self.end_time and self.start_time and self.service:
-            self.end_time = self.start_time + timedelta(minutes=self.service.duration_minutes)
-        super().save(*args, **kwargs)
+class Reservation(models.Model):
+    reservation_number = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='reservations', verbose_name="顧客", null=True)
+    salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='reservations')
+    service = models.ForeignKey(Service, on_delete=models.CASCADE)
+    start_time = models.DateTimeField(null=True)
+    end_time = models.DateTimeField(null=True)
+    status = models.CharField(max_length=20, choices=[('pending', '保留中'), ('confirmed', '確定済み'), ('cancelled', 'キャンセル済み')], default='pending')
+
+    def __str__(self):
+        # ▼▼▼ 以下のように修正 ▼▼▼
+        return f"{self.customer.name} - {self.start_time.strftime('%Y-%m-%d %H:%M')}"
 
 class NotificationSetting(models.Model):
     """

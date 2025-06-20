@@ -13,6 +13,8 @@ import ReservationCheck from './components/ReservationCheck.tsx';
 import CancellationComplete from './components/CancellationComplete.tsx';
 import AdminPanel from './components/AdminPanel.tsx';
 import ReservationDetail from './components/ReservationDetail.tsx';
+import LineCallback from './components/LineCallback'; 
+import LoginFailed from './components/LoginFailed';
 import Manual from './components/Manual.tsx';
 
 // Not Foundページ用のシンプルなコンポーネント
@@ -32,6 +34,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Routes>
         {/* ユーザー向け画面 */}
         <Route path="/" element={<App />} />
+        <Route path="/callback" element={<LineCallback />} />
+        <Route path="/login-failed" element={<LoginFailed />} />
         <Route path="/reserve" element={<ServiceAndReservationPicker />} />
         <Route path="/check" element={<ReservationCheck />} />
         <Route path="/cancellation-complete" element={<CancellationComplete />} />
