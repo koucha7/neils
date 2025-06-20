@@ -15,7 +15,7 @@ from google.auth.exceptions import GoogleAuthError
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -24,6 +24,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
 from pathlib import Path
+from django.contrib.auth.models import User
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
@@ -101,7 +102,7 @@ class DateScheduleViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class ReservationViewSet(viewsets.ModelViewSet):
-    permission_classes = [AllowAny] # ★追加
+    permission_classes = [IsAuthenticated]
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
     lookup_field = "reservation_number"
@@ -146,30 +147,38 @@ class ReservationViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+
+        try:
+            customer = request.user.customer_profile
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer profile not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # フォームの入力内容で顧客情報を更新
+        # .get(key, default_value)を使い、入力がなければ既存の値を維持
+        customer.name = validated_data.get('customer_name', customer.name)
+        customer.phone_number = validated_data.get('customer_phone', customer.phone_number)
         
-        # --- 顧客情報の取得または作成 ---
-        customer_email = serializer.validated_data.get('customer.email')
-        customer_name = serializer.validated_data.get('customer.name')
-        customer_phone = serializer.validated_data.get('customer.phone')
-
-        # メールアドレスを元に顧客を検索し、存在しなければ新しく作成する
-        customer, created = Customer.objects.get_or_create(
-            email=customer.email,
-            defaults={
-                'name': customer.name,
-                'phone_number': customer.phone,
-            }
-        )
-        # ----------------------------
-
-        service = serializer.validated_data["service"]
-        start_time = serializer.validated_data["start_time"]
+        # Emailはユニーク制約があるため、慎重に更新
+        new_email = validated_data.get('customer_email')
+        if new_email and new_email != customer.email:
+             if Customer.objects.filter(email=new_email).exclude(pk=customer.pk).exists():
+                 return Response(
+                     {'error': {'customer_email': 'このメールアドレスは既に使用されています。'}},
+                     status=status.HTTP_400_BAD_REQUEST
+                 )
+             customer.email = new_email
+        
+        customer.save()
+        
+        # --- 予約作成 ---
+        service = validated_data["service"]
+        start_time = validated_data["start_time"]
         end_time = start_time + timedelta(minutes=service.duration_minutes)
 
-        # 予約を作成。customerフィールドに取得or作成した顧客オブジェクトをセット
         reservation = Reservation.objects.create(
             customer=customer,
-            salon=serializer.validated_data["salon"],
+            salon=validated_data["salon"],
             service=service,
             start_time=start_time,
             end_time=end_time,
@@ -710,6 +719,7 @@ class BookableDatesView(APIView):
 
         return Response(date_strings)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class LineLoginCallbackView(APIView):
     permission_classes = [AllowAny]
 
@@ -767,22 +777,62 @@ class LineLoginCallbackView(APIView):
         picture_url = profile.get('picture')
         email = profile.get('email')
 
-        # 3. 顧客情報をデータベースに保存または更新
+        # 3. DjangoのUserモデルを取得または作成
+        # ユーザー名はユニークである必要があるため、LINEのIDから生成
+        username = f"line_{line_user_id}"
+
+        # LINEからemailが取得できない場合は、usernameから一意なダミーメールアドレスを生成
+        user_email = email if email else f"{username}@example.com"
+
+        # 3. DjangoのUserモデルを取得または作成
+        user, created = User.objects.get_or_create(
+            username=username,
+            defaults={
+                'first_name': display_name,
+                'email': user_email, # ダミーメールアドレスを使用
+            }
+        )
+
+        if created:
+            # 新規作成時はパスワードを無効化
+            user.set_unusable_password()
+            user.save()
+        elif email and user.email != email:
+            # 既存ユーザーだが、今回新たにメールが取得できた場合は更新
+            user.email = email
+            user.save()
+
+        # 4. Customerモデルを取得または作成し、Userモデルと紐付ける
         customer, created = Customer.objects.update_or_create(
             line_user_id=line_user_id,
             defaults={
+                'user': user,  # 作成したUserインスタンスを紐付け
                 'name': display_name,
-                'email': email,
+                'email': email, # Customerモデルにも情報を保存
                 'line_display_name': display_name,
                 'line_picture_url': picture_url,
             }
         )
         
-        # 4. このWebアプリ専用の認証トークン(JWT)を生成
-        refresh = RefreshToken.for_user(customer)
+        # 5. UserインスタンスでJWTを生成
+        refresh = RefreshToken.for_user(user) # 引数をcustomerからuserに変更
         
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             'customer': CustomerSerializer(customer).data
         })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    """
+    ログインしているユーザー自身の顧客情報を返すAPI
+    """
+    try:
+        # request.user (認証されたDjangoユーザー) から customer_profile を通じて顧客情報を取得
+        customer = request.user.customer_profile
+        serializer = CustomerSerializer(customer)
+        return Response(serializer.data)
+    except Customer.DoesNotExist:
+        return Response({'error': 'Customer profile not found.'}, status=404)

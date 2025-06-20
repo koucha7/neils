@@ -18,6 +18,7 @@ from .views import (
     ConfiguredDatesView,
     BookableDatesView,
     LineLoginCallbackView,
+    me,
     MonthlyScheduleAdminView
 )
 
@@ -38,6 +39,7 @@ urlpatterns += [
     path('time-slots/', TimeSlotAPIView.as_view(), name='time-slots'),
     path('bookable-dates/', BookableDatesView.as_view(), name='bookable-dates'),
     path('auth/line/callback/', csrf_exempt(LineLoginCallbackView.as_view()), name='line-callback'),
+    path('users/me/', me, name='user-me'),
 
     # ↓↓↓↓ 管理用のAPIパスをこちらに集約します ↓↓↓↓
     path('admin/available-slots/', AdminAvailableSlotView.as_view(), name='admin-available-slots'),

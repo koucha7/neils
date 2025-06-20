@@ -42,13 +42,12 @@ class ReservationSerializer(serializers.ModelSerializer):
 class ReservationCreateSerializer(serializers.ModelSerializer):
     # 顧客情報はビュー側で処理するため、このシリアライザからは顧客情報を削除
     # 代わりに、予約作成時にフロントエンドから送られてくる顧客情報を定義する
-    customer_name = serializers.CharField(write_only=True)
-    customer_email = serializers.EmailField(write_only=True)
-    customer_phone = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    customer_name = serializers.CharField(required=False, allow_blank=True, help_text="予約時に更新する場合の顧客名")
+    customer_email = serializers.EmailField(required=False, allow_blank=True, allow_null=True, help_text="予約時に更新する場合のメールアドレス")
+    customer_phone = serializers.CharField(required=False, allow_blank=True, help_text="予約時に更新する場合の電話番号")
 
     class Meta:
         model = Reservation
-        # ▼▼▼ 予約作成に必要なフィールドを指定 ▼▼▼
         fields = [
             'salon', 
             'service', 

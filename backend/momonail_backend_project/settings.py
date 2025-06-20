@@ -59,7 +59,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware', 
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware', # CORSがCSRFより前にあることを確認
+    'django.middleware.csrf.CsrfViewMiddleware', # CORSがCSRFより前にあることを確認
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -125,6 +125,39 @@ CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',') if CORS_ALLOWED_ORIGI
  """
 # 開発モード（DEBUG=True）の場合、ローカルのフロントエンドを許可リストに追加
 DEBUG = True
-CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    # 将来的にデプロイするフロントエンドのURLも追加できます
+    # "https://your-frontend-domain.com", 
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# 全ての標準的なHTTPヘッダーを許可する
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'authorization',
+    'content-type',
+    'origin',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Renderなどの本番環境では、CSRF信頼済みオリジンも設定するとより安全です
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+
 ALLOWED_HOSTS = ['*']
-LOGIN_URL = '/api/token/' 
+LOGIN_URL = '/api/token/'

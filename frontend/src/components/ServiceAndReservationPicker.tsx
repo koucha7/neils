@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../api/axiosConfig";
 import DatePicker, { registerLocale } from "react-datepicker";
@@ -6,6 +6,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import axios from "axios";
+import { AuthContext } from "../context/AuthContext";
 
 // react-datepickerを日本語化
 registerLocale("ja", ja);
@@ -49,6 +50,9 @@ const ServiceAndReservationPicker: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [bookableDates, setBookableDates] = useState<string[]>([]);
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
+
+  const { isLoggedIn } = useContext(AuthContext);
 
   const isBookable = (date: Date) => {
     const formattedDate = format(date, "yyyy-MM-dd");
@@ -56,14 +60,32 @@ const ServiceAndReservationPicker: React.FC = () => {
     return bookableDates.includes(formattedDate);
   };
 
-/*   const handleLineLogin = () => {
-    const state = "YOUR_RANDOM_STATE_STRING"; // CSRF対策のランダムな文字列
-    localStorage.setItem("line_login_state", state);
-    
-    const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${import.meta.env.VITE_LINE_LOGIN_CHANNEL_ID}&redirect_uri=${import.meta.env.VITE_LINE_CALLBACK_URL}&state=${state}&scope=openid%20profile%20email`;
-    
-    window.location.href = lineLoginUrl;
-}; */
+  useEffect(() => {
+    const fetchCustomerData = async () => {
+      if (isLoggedIn) {
+        setIsLoadingCustomer(true);
+        try {
+          const response = await api.get("/users/me/");
+          setCustomerName(response.data.name || "");
+          setCustomerEmail(response.data.email || "");
+          setCustomerPhone(response.data.phone_number || "");
+        } catch (error) {
+          console.error("顧客情報の取得に失敗しました:", error);
+          // エラーメッセージをユーザーに表示するなどの処理
+        } finally {
+          setIsLoadingCustomer(false);
+        }
+      } else {
+        setIsLoadingCustomer(false);
+      }
+    };
+
+    fetchCustomerData();
+  }, [isLoggedIn]);
+
+  if (isLoadingCustomer) {
+    return <p>顧客情報を読み込んでいます...</p>;
+  }
 
   // Effect Hook for initial data fetching
   useEffect(() => {
@@ -191,6 +213,17 @@ const ServiceAndReservationPicker: React.FC = () => {
     const finalDateTime = new Date(selectedDate);
     const [hours, minutes] = selectedTime.split(":").map(Number);
     finalDateTime.setHours(hours, minutes, 0, 0);
+
+    if (!isLoggedIn) {
+      return (
+        <div className="text-center p-8 border rounded-lg bg-gray-50">
+          <p className="text-lg">
+            予約をするには、まずLINEでログインしてください。
+          </p>
+          {/* ここにLINEログインボタンを配置するとより親切です */}
+        </div>
+      );
+    }
 
     try {
       const reservationData = {
@@ -395,37 +428,36 @@ const ServiceAndReservationPicker: React.FC = () => {
                     </p>
                   </div>
                   <div>
-                    <label
-                      htmlFor="customer-name"
-                      className="block text-gray-700 font-semibold mb-1"
-                    >
-                      お名前 <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-700">
+                      お名前
                     </label>
                     <input
                       type="text"
-                      id="customer-name"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
-                      required
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="山田 太郎"
+                      className="w-full p-2 border rounded mt-1"
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="customer-email"
-                      className="block text-gray-700 font-semibold mb-1"
-                    >
-                      メールアドレス <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-700">
+                      メールアドレス
                     </label>
                     <input
                       type="email"
-                      id="customer-email"
                       value={customerEmail}
                       onChange={(e) => setCustomerEmail(e.target.value)}
-                      required
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="your.email@example.com"
+                      className="w-full p-2 border rounded mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      電話番号
+                    </label>
+                    <input
+                      type="tel"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className="w-full p-2 border rounded mt-1"
                     />
                   </div>
                   <div>

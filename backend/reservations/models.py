@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import timedelta
+from django.conf import settings
 import uuid #
 
 class Salon(models.Model):
@@ -68,26 +69,31 @@ class Customer(models.Model):
     """
     顧客情報を格納するモデル。
     """
+    # ▼▼▼ line_user_id を主キーに変更 ▼▼▼
+    line_user_id = models.CharField(
+        "LINEユーザーID",
+        max_length=255,
+        primary_key=True,  # ★ primary_key=True に設定
+        help_text="LINEでの通知や連携に使用する一意のIDです。"
+    )
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True, # 既存データのためにNULLを許容
+        blank=True,
+        related_name='customer_profile' # UserからCustomerを辿れるように
+    )
+
     # ユーザー指定の必須フィールド
     name = models.CharField("氏名", max_length=100)
     email = models.EmailField(
-        'メールアドレス', 
+        'メールアドレス',
+        unique=True,
         null=True,
         blank=True,
         help_text="顧客を一意に識別するために使用します。"
     )
     phone_number = models.CharField("電話番号", max_length=20, blank=True)
-    
-    # LINE連携情報
-    line_user_id = models.CharField(
-        "LINEユーザーID", 
-        max_length=255, 
-        unique=True, 
-        null=True, 
-        blank=True, 
-        db_index=True, 
-        help_text="LINEでの通知や連携に使用する一意のIDです。"
-    )
     
     # あると便利な追加情報
     line_display_name = models.CharField("LINE表示名", max_length=100, blank=True, help_text="LINEプロフィールの表示名です。")
