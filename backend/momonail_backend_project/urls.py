@@ -1,14 +1,14 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.i18n import i18n_patterns
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
 # ★ 1. 以下の3行を追加 ★
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
 
 class HealthCheckAPIView(APIView):
     """
@@ -19,7 +19,6 @@ class HealthCheckAPIView(APIView):
         return Response({"status": "ok"}, status=200)
 
 # --- URLパターンの定義 ---
-# 国際化(i18n)を一旦無効にし、全てのURLをここで定義して問題を単純化します。
 urlpatterns = [
     # 1. Django標準の管理画面
     path('admin/', admin.site.urls),
@@ -31,7 +30,10 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # 4. reservationsアプリの全てのAPI
+    # 管理者専用APIのエンドポイントを 'reservations.urls' に振り分け
+    path('api/admin/', include('reservations.admin_urls')), 
+    
+    # 顧客向けAPIのエンドポイント
     path('api/', include('reservations.urls')),
 ]
 

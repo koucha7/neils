@@ -10791,3 +10791,5 @@ backend/.env
 /backend/venv/Scripts/sqlformat.exe
 /backend/venv/pyvenv.cfg
 backend/test_env.py
+/Memo.txt
+/frontend/node_modules
