@@ -6,7 +6,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import axios from "axios";
-import { AuthContext } from "../context/AuthContext";
+import { useAuth } from '../context/AuthContext';
 
 // react-datepickerを日本語化
 registerLocale("ja", ja);

@@ -16,6 +16,9 @@ import ReservationDetail from './components/ReservationDetail.tsx';
 import LineCallback from './components/LineCallback'; 
 import LoginFailed from './components/LoginFailed';
 import Manual from './components/Manual.tsx';
+import { AuthProvider } from './context/AuthContext'; // ★ AuthProviderをインポート
+import LineCallback from './components/LineCallback'; // ★ LineCallbackをインポート
+import LoginFailed from './components/LoginFailed';   // ★ LoginFailedをインポート
 
 // Not Foundページ用のシンプルなコンポーネント
 function NotFound() {
@@ -30,24 +33,27 @@ function NotFound() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Router>
-      <Routes>
-        {/* ユーザー向け画面 */}
-        <Route path="/" element={<App />} />
-        <Route path="/callback" element={<LineCallback />} />
-        <Route path="/login-failed" element={<LoginFailed />} />
-        <Route path="/reserve" element={<ServiceAndReservationPicker />} />
-        <Route path="/check" element={<ReservationCheck />} />
-        <Route path="/cancellation-complete" element={<CancellationComplete />} />
-        <Route path="/reservation-complete/:reservationNumber" element={<ReservationComplete />} />
-
-        {/* 管理者向け画面 */}
-        <Route path="/admin" element={<AdminPanel />} />
-        <Route path="/admin/reservations/:reservationNumber" element={<ReservationDetail />} />
-        <Route path="/manual" element={<Manual />} />
-        {/* ★★★ ここから追加：他のどのルートにも一致しない場合に表示 ★★★ */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Router>
+    return (
+    <AuthProvider> {/* ★ AuthProviderで全体をラップ */}
+      <Router>
+        <div className="App bg-gray-100 min-h-screen">
+          <Routes>
+            <Route path="/" element={<ServiceAndReservationPicker />} />
+            <Route path="/complete" element={<ReservationComplete />} />
+            <Route path="/check" element={<ReservationCheck />} />
+            <Route path="/reservations/:reservationNumber" element={<ReservationDetail />} />
+            <Route path="/cancellation-complete" element={<CancellationComplete />} />
+            <Route path="/admin" element={<AdminPanel />} />
+            {/* <Route path="/admin/reservations" element={<AdminReservationList />} /> */}
+            {/* <Route path="/admin/reservations/:reservationId" element={<AdminReservationDetail />} /> */}
+            <Route path="/admin/statistics" element={<StatisticsPanel />} />
+            <Route path="/admin/manual" element={<Manual />} />
+            <Route path="/auth/line/callback" element={<LineCallback />} /> {/* ★ LINEコールバック用ルート */}
+            <Route path="/login-failed" element={<LoginFailed />} /> {/* ★ ログイン失敗時用ルート */}
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
+  );
   </React.StrictMode>,
 );

@@ -74,6 +74,7 @@ class Customer(models.Model):
         "LINEユーザーID",
         max_length=255,
         primary_key=True,  # ★ primary_key=True に設定
+        default=uuid.uuid4, # ★この行を追加
         help_text="LINEでの通知や連携に使用する一意のIDです。"
     )
     user = models.OneToOneField(
@@ -94,8 +95,6 @@ class Customer(models.Model):
         help_text="顧客を一意に識別するために使用します。"
     )
     phone_number = models.CharField("電話番号", max_length=20, blank=True)
-    
-    # あると便利な追加情報
     line_display_name = models.CharField("LINE表示名", max_length=100, blank=True, help_text="LINEプロフィールの表示名です。")
     line_picture_url = models.URLField("LINEプロフィール画像URL", max_length=2048, blank=True)
     notes = models.TextField("備考", blank=True, help_text="顧客に関するメモなどを記載します。")
