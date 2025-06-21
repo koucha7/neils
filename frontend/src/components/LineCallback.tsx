@@ -17,7 +17,7 @@ const LineCallback = () => {
       try {
         // バックエンドのLINEログイン用APIエンドポイントにリクエストを送信
         // ★注意: APIのパスが異なる場合は、実際のパス（例: '/line/login/' など）に修正してください
-        const response = await api.post('/users/line/login/', { code });
+        const response = await api.post('/api/users/line/login/', { code });
 
         // レスポンスにトークンが含まれているか確認
         if (response.data.access_token && response.data.refresh_token) {

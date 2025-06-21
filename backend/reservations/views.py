@@ -719,7 +719,7 @@ class BookableDatesView(APIView):
 
         return Response(date_strings)
 
-""" @method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(csrf_exempt, name='dispatch')
 class LineLoginCallbackView(APIView):
     permission_classes = [AllowAny]
 
@@ -835,4 +835,4 @@ def me(request):
         serializer = CustomerSerializer(customer)
         return Response(serializer.data)
     except Customer.DoesNotExist:
-        return Response({'error': 'Customer profile not found.'}, status=404) """
+        return Response({'error': 'Customer profile not found.'}, status=404)
