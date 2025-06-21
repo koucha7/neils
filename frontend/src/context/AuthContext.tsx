@@ -1,60 +1,49 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+// frontend/src/context/AuthContext.tsx
 
-// コンテキストが提供する値の型を定義
+import { createContext, useState, ReactNode, useContext } from 'react';
+
 interface AuthContextType {
   isLoggedIn: boolean;
-  login: (accessToken: string, refreshToken: string) => void;
+  login: (accessToken: string, refreshToken: string) => void; // refreshTokenも受け取るように変更
   logout: () => void;
 }
 
-// AuthContextを作成
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
-// AuthProviderコンポーネントを作成
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // useStateでisLoggedInの状態を管理。初期値はlocalStorageから取得
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('isLoggedIn') === 'true';
+    return !!localStorage.getItem('accessToken'); // accessTokenの存在で判定
   });
 
-  // login関数
+  // login関数を修正
   const login = (accessToken: string, refreshToken: string) => {
     localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('isLoggedIn', 'true'); // isLoggedinも保存
+    localStorage.setItem('refreshToken', refreshToken); // refreshTokenを保存
     setIsLoggedIn(true);
   };
 
-  // logout関数
   const logout = () => {
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('refreshToken'); // refreshTokenも削除
     setIsLoggedIn(false);
   };
 
-  // コンポーネントのマウント時にログイン状態をチェック
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      setIsLoggedIn(true);
-    } else {
-      setIsLoggedIn(false);
-    }
-  }, []);
+  const value = { isLoggedIn, login, logout };
 
-  // コンテキストプロバイダーを返す
   return (
-    <AuthContext.Provider value={{ isLoggedIn, login, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// useAuthカスタムフック
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

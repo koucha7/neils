@@ -1,35 +1,60 @@
+// frontend/src/components/LineCallback.tsx
+
 import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { useAuth } from '../context/AuthContext';
 
 const LineCallback = () => {
+  // 1. useAuthフックからlogin関数を取得します
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   useEffect(() => {
-    const code = searchParams.get('code');
-    // stateの検証もここで行うのが望ましい
+    // 2. ログイン処理を行う非同期関数を定義します
+    const handleLogin = async (code: string) => {
+      try {
+        // バックエンドのLINEログイン用APIエンドポイントにリクエストを送信
+        // ★注意: APIのパスが異なる場合は、実際のパス（例: '/line/login/' など）に修正してください
+        const response = await api.post('/users/line/login/', { code });
+
+        // レスポンスにトークンが含まれているか確認
+        if (response.data.access_token && response.data.refresh_token) {
+          // 3. Contextのlogin関数を使ってトークンを保存します
+          login(response.data.access_token, response.data.refresh_token);
+          // ログイン後のリダイレクト先（例: 予約ページ）
+          navigate('/reserve');
+        } else {
+          throw new Error("ログインレスポンスにトークンが含まれていません");
+        }
+      } catch (error) {
+        console.error('LINEログインに失敗しました:', error);
+        navigate('/login-failed');
+      }
+    };
+
+    // URLから認証コードを取得
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code');
 
     if (code) {
-      api.post('/api/auth/line/callback/', { code })
-        .then(response => {
-          // バックエンドから受け取ったトークンを保存
-          localStorage.setItem('accessToken', response.data.access);
-          localStorage.setItem('refreshToken', response.data.refresh);
-          localStorage.setItem('isLoggedIn', 'true');
-          
-          // 予約ページに移動
-          navigate('/reserve');
-        })
-        .catch(error => {
-          console.error('LINE Login Failed:', error);
-          // エラーページに移動
-          navigate('/login-failed');
-        });
+      // 4. 認証コードがあれば、ログイン処理を実行します
+      handleLogin(code);
+    } else {
+      console.error("URLに認証コードが見つかりません");
+      navigate('/login-failed');
     }
-  }, [searchParams, navigate]);
+    
+  // 5. 依存配列にlogin, location, navigate を設定します
+  }, [login, location, navigate]);
 
-  return <div>ログイン処理中...</div>;
+  return (
+    <div>
+      <p>LINE認証でログインしています...</p>
+      <p>画面が切り替わらない場合は、ページを再読み込みしてください。</p>
+    </div>
+  );
 };
 
 export default LineCallback;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useContext } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../api/axiosConfig";
 import DatePicker, { registerLocale } from "react-datepicker";
@@ -29,6 +29,7 @@ interface Service {
 
 const ServiceAndReservationPicker: React.FC = () => {
   // --- 1. 全てのフックをコンポーネントの最上位で定義 ---
+  const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
 
   // State Hooks
@@ -52,8 +53,6 @@ const ServiceAndReservationPicker: React.FC = () => {
   const [bookableDates, setBookableDates] = useState<string[]>([]);
   const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
 
-  const { isLoggedIn } = useContext(AuthContext);
-
   const isBookable = (date: Date) => {
     const formattedDate = format(date, "yyyy-MM-dd");
     // 予約可能日リストに含まれている日付のみtrueを返す
@@ -71,7 +70,6 @@ const ServiceAndReservationPicker: React.FC = () => {
           setCustomerPhone(response.data.phone_number || "");
         } catch (error) {
           console.error("顧客情報の取得に失敗しました:", error);
-          // エラーメッセージをユーザーに表示するなどの処理
         } finally {
           setIsLoadingCustomer(false);
         }
