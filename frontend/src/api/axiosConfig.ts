@@ -19,11 +19,12 @@ const api = axios.create({
 // ===== リクエストインターセプター =====
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('accessToken');
+        // 'accessToken' と 'refresh_token' のキー名を統一するため、AuthContext.tsxなどに合わせてください。
+        // ここでは 'access_token', 'refresh_token' を使用します。
+        const token = localStorage.getItem('access_token');
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
-
         return config;
     },
     (error) => {
@@ -31,94 +32,57 @@ api.interceptors.request.use(
     }
 );
 
-// isRefreshingフラグとリクエストのキュー
-let isRefreshing = false;
-let failedQueue: { resolve: (value: unknown) => void; reject: (reason?: any) => void; }[] = [];
-
-const processQueue = (error: any, token = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-
-  failedQueue = [];
-};
 
 // ===== レスポンスインターセプター =====
 api.interceptors.response.use(
+    // 正常なレスポンスはそのまま返します。
     (response) => {
         return response;
     },
+    // エラーレスポンスを処理します。
     async (error) => {
         const originalRequest = error.config;
 
-        // 401エラーで、かつトークンリフレッシュの試行でない場合
-        if (error.response.status === 401 && !originalRequest._retry) {
-            
-            if (isRefreshing) {
-                // 現在リフレッシュ中の場合は、新しいトークンが取得されるまで待機
-                return new Promise(function(resolve, reject) {
-                    failedQueue.push({resolve, reject});
-                }).then(token => {
-                    originalRequest.headers['Authorization'] = 'Bearer ' + token;
-                    return axios(originalRequest);
-                }).catch(err => {
-                    return Promise.reject(err);
-                });
-            }
+        // 401エラー、かつトークン無効のエラーコードで、まだリトライしていない場合に処理を実行
+        if (error.response?.status === 401 && error.response.data.code === 'token_not_valid' && !originalRequest._retry) {
+            originalRequest._retry = true; // 無限ループを避けるため、リトライ済みフラグを立てる
 
-            originalRequest._retry = true;
-            isRefreshing = true;
+            const refreshToken = localStorage.getItem('refresh_token');
 
-            const refreshToken = localStorage.getItem('refreshToken');
-            if (!refreshToken) {
-                // リフレッシュトークンがない場合はログアウト処理
-                console.log("No refresh token, redirecting to login.");
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('isLoggedIn');
-                if (window.location.pathname.startsWith('/admin')) {
-                    window.location.href = '/admin';
+            if (refreshToken) {
+                try {
+                    // リフレッシュトークンを使って新しいアクセストークンを要求
+                    const tokenRefreshResponse = await axios.post(`${API_BASE_URL}/api/token/refresh/`, {
+                        refresh: refreshToken
+                    });
+
+                    const newAccessToken = tokenRefreshResponse.data.access;
+
+                    // 新しいアクセストークンを保存
+                    localStorage.setItem('access_token', newAccessToken);
+
+                    // 元のリクエストのヘッダーを新しいトークンで更新
+                    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+                    // 元のリクエストを再試行
+                    return api(originalRequest);
+
+                } catch (refreshError) {
+                    console.error('アクセストークンのリフレッシュに失敗しました:', refreshError);
+                    // リフレッシュに失敗した場合（リフレッシュトークンも無効な場合など）は、
+                    // ユーザーをログアウトさせ、ログインページにリダイレクトします。
+                    localStorage.removeItem('access_token');
+                    localStorage.removeItem('refresh_token');
+                    
+                    // AuthContextの状態も更新することが望ましいですが、
+                    // ここではシンプルにページをリロードして対応します。
+                    window.location.href = '/login'; // ご自身のログインページのパスに合わせてください
+
+                    return Promise.reject(refreshError);
                 }
-                isRefreshing = false;
-                return Promise.reject(error);
-            }
-
-            try {
-                const rs = await axios.post(`${API_BASE_URL}/api/token/refresh/`, {
-                    refresh: refreshToken
-                });
-
-                const { access } = rs.data;
-                localStorage.setItem('accessToken', access);
-                
-                // 新しいアクセストークンをヘッダーにセット
-                api.defaults.headers.common['Authorization'] = 'Bearer ' + access;
-                originalRequest.headers['Authorization'] = 'Bearer ' + access;
-                
-                processQueue(null, access); // 待機中のリクエストを再開
-                
-                return api(originalRequest); // 元のリクエストを再試行
-            } catch (refreshError) {
-                // リフレッシュトークンも無効だった場合
-                console.error("Refresh token is invalid. Logging out.", refreshError);
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('refreshToken');
-                localStorage.removeItem('isLoggedIn');
-                
-                processQueue(refreshError, null); // 待機中のリクエストをエラーで終了
-
-                if (window.location.pathname.startsWith('/admin')) {
-                    window.location.href = '/admin'; // ログインページにリダイレクト
-                }
-                return Promise.reject(refreshError);
-            } finally {
-                isRefreshing = false;
             }
         }
-
+        // 上記以外のエラーはそのままエラーとして処理
         return Promise.reject(error);
     }
 );

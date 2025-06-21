@@ -16,14 +16,13 @@ const LineCallback = () => {
     const handleLogin = async (code: string) => {
       try {
         // バックエンドのLINEログイン用APIエンドポイントにリクエストを送信
-        // ★注意: APIのパスが異なる場合は、実際のパス（例: '/line/login/' など）に修正してください
-        const response = await api.post('/api/users/line/login/', { code });
+        const response = await api.post('/api/auth/line/callback/', { code });
 
         // レスポンスにトークンが含まれているか確認
-        if (response.data.access_token && response.data.refresh_token) {
-          // 3. Contextのlogin関数を使ってトークンを保存します
-          login(response.data.access_token, response.data.refresh_token);
-          // ログイン後のリダイレクト先（例: 予約ページ）
+        if (response.data.access && response.data.refresh) {
+          // login関数に正しいデータを渡す
+          login(response.data.access, response.data.refresh);
+          // ログイン後のリダイレクト先
           navigate('/reserve');
         } else {
           throw new Error("ログインレスポンスにトークンが含まれていません");

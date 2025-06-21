@@ -1,50 +1,64 @@
-// frontend/src/context/AuthContext.tsx
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
-import { createContext, useState, ReactNode, useContext } from 'react';
-
+// (インターフェース定義などは変更なし)
 interface AuthContextType {
-  isLoggedIn: boolean;
-  login: (accessToken: string, refreshToken: string) => void; // refreshTokenも受け取るように変更
+  accessToken: string | null;
+  refreshToken: string | null;
+  login: (accessToken: string, refreshToken: string) => void;
   logout: () => void;
+  isAuthenticated: boolean;
 }
 
-export const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+    // 修正: localStorageから読み出すキーをスネークケースに
+    const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem('access_token'));
+    const [refreshToken, setRefreshToken] = useState<string | null>(localStorage.getItem('refresh_token'));
 
-export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return !!localStorage.getItem('accessToken'); // accessTokenの存在で判定
-  });
+    useEffect(() => {
+        // 修正: こちらも同様にスネークケースに
+        const storedAccessToken = localStorage.getItem('access_token');
+        const storedRefreshToken = localStorage.getItem('refresh_token');
+        if (storedAccessToken) {
+            setAccessToken(storedAccessToken);
+        }
+        if (storedRefreshToken) {
+            setRefreshToken(storedRefreshToken);
+        }
+    }, []);
 
-  // login関数を修正
-  const login = (accessToken: string, refreshToken: string) => {
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken); // refreshTokenを保存
-    setIsLoggedIn(true);
-  };
+    const login = (newAccessToken: string, newRefreshToken: string) => {
+        setAccessToken(newAccessToken);
+        setRefreshToken(newRefreshToken);
+        // 修正: localStorageへ保存するキーをスネークケースに
+        localStorage.setItem('access_token', newAccessToken);
+        localStorage.setItem('refresh_token', newRefreshToken);
+    };
 
-  const logout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken'); // refreshTokenも削除
-    setIsLoggedIn(false);
-  };
+    const logout = () => {
+        setAccessToken(null);
+        setRefreshToken(null);
+        // 修正: localStorageから削除するキーをスネークケースに
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+    };
 
-  const value = { isLoggedIn, login, logout };
+    const value = {
+        accessToken,
+        refreshToken,
+        login,
+        logout,
+        isAuthenticated: !!accessToken,
+    };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === null) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
 };

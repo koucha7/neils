@@ -29,7 +29,7 @@ interface Service {
 
 const ServiceAndReservationPicker: React.FC = () => {
   // --- 1. 全てのフックをコンポーネントの最上位で定義 ---
-  const { isLoggedIn } = useAuth();
+  const { isAuthenticated: isLoggedIn} = useAuth();
   const navigate = useNavigate();
 
   // State Hooks
@@ -64,7 +64,7 @@ const ServiceAndReservationPicker: React.FC = () => {
       if (isLoggedIn) {
         setIsLoadingCustomer(true);
         try {
-          const response = await api.get("/users/me/");
+          const response = await api.get("/api/users/me/");
           setCustomerName(response.data.name || "");
           setCustomerEmail(response.data.email || "");
           setCustomerPhone(response.data.phone_number || "");
@@ -270,12 +270,19 @@ const ServiceAndReservationPicker: React.FC = () => {
   }, []);
 
   // --- 2. 条件分岐による早期returnは、全てのフック定義の後に記述 ---
-  if (loading)
+  // --- 2. すべてのフック定義の後に、条件分岐によるreturnを記述 ---
+  if (isLoadingCustomer) {
+    return <p>顧客情報を読み込んでいます...</p>;
+  }
+  if (loading) {
     return <div className="text-center p-10">情報を読み込み中...</div>;
-  if (error)
+  }
+  if (error) {
     return <div className="text-center p-10 text-red-500">エラー: {error}</div>;
-  if (!salon)
+  }
+  if (!salon) {
     return <div className="text-center p-10">サロン情報が見つかりません。</div>;
+  }
 
   // --- 3. レンダリング ---
   return (
