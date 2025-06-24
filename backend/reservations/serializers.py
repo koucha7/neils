@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Salon, Service, Reservation, DateSchedule, NotificationSetting, WeeklyDefaultSchedule, Customer # ← Customerをインポート
+from .models import Salon, Service, Reservation, DateSchedule, NotificationSetting, WeeklyDefaultSchedule, Customer
+from django.contrib.auth.models import User # ← Customerをインポート
 
 class SalonSerializer(serializers.ModelSerializer):
     class Meta:
@@ -25,6 +26,11 @@ class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = '__all__'
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name']
 
 class ReservationSerializer(serializers.ModelSerializer):
     # ▼▼▼ 以下の1行を追加 ▼▼▼

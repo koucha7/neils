@@ -91,11 +91,14 @@ TEMPLATES = [
 # REST Frameworkの設定
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.SessionAuthentication',
+        # 管理者ログイン用の標準的なJWT認証をデフォルトにする
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Django Admin等でのセッション認証も残しておく
+        'rest_framework.authentication.SessionAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.AllowAny',
+        # デフォルトでは認証済みユーザーのみアクセスを許可する
+        'rest_framework.permissions.IsAuthenticated',
     ),
 }
 
@@ -115,8 +118,11 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@yourdomain.co
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # アクセストークンの有効期間
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),   # リフレッシュトークンの有効期間
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
 }
 
 # 環境変数からCORS許可オリジンを取得
@@ -161,6 +167,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://momonail.onrender.com', # 本番環境用
 ]
 
+CORS_ALLOW_CREDENTIALS = True
 
 ALLOWED_HOSTS = ['*']
+
 LOGIN_URL = '/api/token/'

@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import api from "../api/axiosConfig";
+import api from "../../api/axiosConfig";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import axios from "axios";
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 // react-datepickerを日本語化
 registerLocale("ja", ja);
@@ -77,13 +77,8 @@ const ServiceAndReservationPicker: React.FC = () => {
         setIsLoadingCustomer(false);
       }
     };
-
     fetchCustomerData();
   }, [isLoggedIn]);
-
-  if (isLoadingCustomer) {
-    return <p>顧客情報を読み込んでいます...</p>;
-  }
 
   // Effect Hook for initial data fetching
   useEffect(() => {
@@ -212,17 +207,6 @@ const ServiceAndReservationPicker: React.FC = () => {
     const [hours, minutes] = selectedTime.split(":").map(Number);
     finalDateTime.setHours(hours, minutes, 0, 0);
 
-    if (!isLoggedIn) {
-      return (
-        <div className="text-center p-8 border rounded-lg bg-gray-50">
-          <p className="text-lg">
-            予約をするには、まずLINEでログインしてください。
-          </p>
-          {/* ここにLINEログインボタンを配置するとより親切です */}
-        </div>
-      );
-    }
-
     try {
       const reservationData = {
         salon: salon.id,
@@ -270,7 +254,16 @@ const ServiceAndReservationPicker: React.FC = () => {
   }, []);
 
   // --- 2. 条件分岐による早期returnは、全てのフック定義の後に記述 ---
-  // --- 2. すべてのフック定義の後に、条件分岐によるreturnを記述 ---
+  if (!isLoggedIn) {
+    return (
+      <div className="text-center p-8 border rounded-lg bg-gray-50">
+        <p className="text-lg">
+          予約をするには、まずLINEでログインしてください。
+        </p>
+        {/* ここにLINEログインボタンを配置するとより親切です */}
+      </div>
+    );
+  }
   if (isLoadingCustomer) {
     return <p>顧客情報を読み込んでいます...</p>;
   }

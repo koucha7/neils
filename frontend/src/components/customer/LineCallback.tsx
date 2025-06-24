@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import api from '../api/axiosConfig';
-import { useAuth } from '../context/AuthContext';
+import api from '../../api/axiosConfig';
+import { useAuth } from '../../context/AuthContext';
 
 const LineCallback = () => {
   // 1. useAuthフックからlogin関数を取得します

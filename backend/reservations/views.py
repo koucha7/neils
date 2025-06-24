@@ -1,10 +1,10 @@
 import os
-""" import requests """
 import uuid
 import calendar
 import requests
 from .models import Service, Reservation, WeeklyDefaultSchedule, DateSchedule, NotificationSetting, AvailableTimeSlot, Customer
-from .serializers import NotificationSettingSerializer, CustomerSerializer
+from .serializers import NotificationSettingSerializer, CustomerSerializer, UserSerializer
+from .authentication import CustomerJWTAuthentication
 from datetime import datetime, time, timedelta, date
 from django.conf import settings
 from django.core.mail import send_mail
@@ -14,8 +14,8 @@ from django.utils import timezone
 from google.auth.exceptions import GoogleAuthError
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework import status, viewsets, generics
+from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -25,6 +25,7 @@ from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
 from pathlib import Path
 from django.contrib.auth.models import User
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
@@ -718,121 +719,139 @@ class BookableDatesView(APIView):
         date_strings = [d.strftime('%Y-%m-%d') for d in bookable_dates]
 
         return Response(date_strings)
+    
+class MyReservationsView(APIView):
+    # このViewに適用する認証クラスを指定
+    authentication_classes = [CustomerJWTAuthentication]
+    # 認証済み（この場合はCustomer）でなければアクセス不可
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # request.user には Customer オブジェクトがセットされている
+        customer = request.user
+        
+        # 顧客に紐づく予約情報を取得して返す
+        reservations = Reservation.objects.filter(customer=customer)
+        serializer = ReservationSerializer(reservations, many=True)
+        return Response(serializer.data)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LineLoginCallbackView(APIView):
+    # このAPIは認証不要でアクセスできるようにする
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         code = request.data.get('code')
         if not code:
-            return Response({'error': 'Code not provided'}, status=400)
+            return Response({'error': 'Code not provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. 受け取ったコードをアクセストークンに交換
-        token_url = 'https://api.line.me/oauth2/v2.1/token'
-        
-        # ▼▼▼ デバッグのために、送信するデータを組み立てる ▼▼▼
-        redirect_uri = os.environ.get('LINE_CALLBACK_URL')
-        client_id = os.environ.get('LINE_LOGIN_CHANNEL_ID')
-        client_secret = os.environ.get('LINE_LOGIN_CHANNEL_SECRET')
-        
-        token_payload = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': redirect_uri,
-            'client_id': client_id,
-            'client_secret': client_secret,
-        }
-        
-        print("--- DEBUG: Sending data to LINE token endpoint ---")
-        print(f"Callback URL from env: {redirect_uri}")
-        print(f"Channel ID from env: {client_id}")
-        print(f"Secret is present: {bool(client_secret)}") # シークレット自体は表示せず、存在有無のみ確認
-        print("Payload being sent:", token_payload)
-        print("-------------------------------------------------")
-        
-        token_response = requests.post(token_url, data=token_payload)
-        
-        if token_response.status_code != 200:
-            # LINEサーバーからのエラー応答もログに出力
-            print("--- ERROR: Response from LINE server ---")
-            print(f"Status Code: {token_response.status_code}")
-            print(f"Response Body: {token_response.text}")
-            print("-----------------------------------------")
-            return Response(token_response.json(), status=token_response.status_code)
-        
-        id_token = token_response.json().get('id_token')
-        
-        # 2. IDトークンを検証してユーザープロフィールを取得
-        verify_url = 'https://api.line.me/oauth2/v2.1/verify'
-        verify_payload = {'id_token': id_token, 'client_id': os.environ.get('LINE_LOGIN_CHANNEL_ID')}
-        verify_response = requests.post(verify_url, data=verify_payload)
-        
-        if verify_response.status_code != 200:
-            return Response(verify_response.json(), status=verify_response.status_code)
+        # 1. LINE Platform APIとの通信
+        try:
+            token_url = 'https://api.line.me/oauth2/v2.1/token'
+            client_id = os.environ.get('LINE_CHANNEL_ID')
+            client_secret = os.environ.get('LINE_CHANNEL_SECRET')
+            redirect_uri = os.environ.get('LINE_REDIRECT_URI')
 
-        profile = verify_response.json()
-        line_user_id = profile.get('sub')
-        display_name = profile.get('name')
-        picture_url = profile.get('picture')
-        email = profile.get('email')
+            # --- ↓↓↓ デバッグ用のprint文を追加 ↓↓↓ ---
+            print("--- Sending to LINE API ---")
+            print(f"redirect_uri: {redirect_uri}")
+            print(f"client_id: {client_id}")
+            print(f"code: {code}")
+            print("---------------------------")
+            # --- ↑↑↑ ここまで追加 ↑↑↑ ---
 
-        # 3. DjangoのUserモデルを取得または作成
-        # ユーザー名はユニークである必要があるため、LINEのIDから生成
-        username = f"line_{line_user_id}"
-
-        # LINEからemailが取得できない場合は、usernameから一意なダミーメールアドレスを生成
-        user_email = email if email else f"{username}@example.com"
-
-        # 3. DjangoのUserモデルを取得または作成
-        user, created = User.objects.get_or_create(
-            username=username,
-            defaults={
-                'first_name': display_name,
-                'email': user_email, # ダミーメールアドレスを使用
+            token_payload = {
+                'grant_type': 'authorization_code',
+                'code': code,
+                'redirect_uri': redirect_uri,
+                'client_id': client_id,
+                'client_secret': client_secret,
             }
-        )
+            token_response = requests.post(token_url, data=token_payload)
+            token_response.raise_for_status()
+            id_token = token_response.json().get('id_token')
 
-        if created:
-            # 新規作成時はパスワードを無効化
-            user.set_unusable_password()
-            user.save()
-        elif email and user.email != email:
-            # 既存ユーザーだが、今回新たにメールが取得できた場合は更新
-            user.email = email
-            user.save()
+            verify_url = 'https://api.line.me/oauth2/v2.1/verify'
+            verify_payload = {'id_token': id_token, 'client_id': client_id}
+            verify_response = requests.post(verify_url, data=verify_payload)
+            verify_response.raise_for_status()
+            
+            profile = verify_response.json()
+            line_user_id = profile.get('sub')
+            display_name = profile.get('name')
 
-        # 4. Customerモデルを取得または作成し、Userモデルと紐付ける
-        customer, created = Customer.objects.update_or_create(
-            line_user_id=line_user_id,
-            defaults={
-                'user': user,  # 作成したUserインスタンスを紐付け
-                'name': display_name,
-                'email': email, # Customerモデルにも情報を保存
-                'line_display_name': display_name,
-                'line_picture_url': picture_url,
-            }
-        )
-        
-        # 5. UserインスタンスでJWTを生成
-        refresh = RefreshToken.for_user(user) # 引数をcustomerからuserに変更
-        
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-            'customer': CustomerSerializer(customer).data
-        })
+        except requests.exceptions.RequestException as e:
+            return Response({'error': 'Failed to communicate with LINE API.', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # 2. 顧客情報の取得または新規作成
+        try:
+            customer, created = Customer.objects.get_or_create(
+                line_user_id=line_user_id,
+                defaults={'name': display_name}
+            )
+
+            # 名前が更新されていればDBも更新
+            if not created and customer.name != display_name:
+                customer.name = display_name
+                customer.save()
+
+            # 3. Customer情報を使って手動でJWTを生成
+            refresh = RefreshToken()
+            
+            # ペイロードに 'line_user_id' を含める
+            # これがステップ1で作成したカスタム認証バックエンドで使われる
+            refresh['line_user_id'] = customer.line_user_id
+            
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'error': 'An unexpected error occurred.', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
+@authentication_classes([CustomerJWTAuthentication, JWTAuthentication])
 @permission_classes([IsAuthenticated])
 def me(request):
     """
-    ログインしているユーザー自身の顧客情報を返すAPI
+    現在認証されているユーザーの情報を返す。
+    管理者（User）または顧客（Customer）のどちらかになります。
     """
-    try:
-        # request.user (認証されたDjangoユーザー) から customer_profile を通じて顧客情報を取得
-        customer = request.user.customer_profile
-        serializer = CustomerSerializer(customer)
+    if isinstance(request.user, Customer):
+        serializer = CustomerSerializer(request.user)
         return Response(serializer.data)
-    except Customer.DoesNotExist:
-        return Response({'error': 'Customer profile not found.'}, status=404)
+
+    elif isinstance(request.user, User):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+    return Response({"error": "不明なユーザータイプです。"}, status=status.HTTP_400_BAD_REQUEST)
+
+class AdminReservationListView(generics.ListAPIView):
+    """
+    管理者用の予約リストAPI。
+    settings.pyで設定したデフォルトの認証（JWTAuthentication）が適用される。
+    認証済みの管理者（スーパーユーザーなど）のみがアクセス可能。
+    """
+    queryset = Reservation.objects.all().order_by('-start_time')
+    serializer_class = ReservationSerializer
+    # permission_classes = [permissions.IsAdminUser] # スーパーユーザーのみに限定する場合
+
+    def get_queryset(self):
+        """
+        クエリパラメータに基づいて予約をフィルタリングする。
+        """
+        queryset = super().get_queryset()
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        status = self.request.query_params.getlist('status') # 複数のステータスに対応
+
+        if start_date:
+            queryset = queryset.filter(start_time__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(start_time__date__lte=end_date)
+        if status:
+            queryset = queryset.filter(status__in=status)
+            
+        return queryset

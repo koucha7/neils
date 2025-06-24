@@ -77,13 +77,6 @@ class Customer(models.Model):
         default=uuid.uuid4, # ★この行を追加
         help_text="LINEでの通知や連携に使用する一意のIDです。"
     )
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        null=True, # 既存データのためにNULLを許容
-        blank=True,
-        related_name='customer_profile' # UserからCustomerを辿れるように
-    )
 
     # ユーザー指定の必須フィールド
     name = models.CharField("氏名", max_length=100)
@@ -100,6 +93,21 @@ class Customer(models.Model):
     notes = models.TextField("備考", blank=True, help_text="顧客に関するメモなどを記載します。")
     created_at = models.DateTimeField("作成日時", auto_now_add=True)
     updated_at = models.DateTimeField("更新日時", auto_now=True)
+
+    @property
+    def is_authenticated(self):
+        """
+        DRFのIsAuthenticated権限クラスなどがこのプロパティを参照します。
+        このオブジェクトが取得できた時点で「認証済み」とみなすため、常にTrueを返します。
+        """
+        return True
+
+    @property
+    def is_anonymous(self):
+        """
+        is_authenticatedと対になるプロパティ。常にFalseを返します。
+        """
+        return False
 
     def __str__(self):
         return self.name

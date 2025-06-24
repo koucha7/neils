@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../api/axiosConfig';
+import api from '../../api/axiosConfig';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
