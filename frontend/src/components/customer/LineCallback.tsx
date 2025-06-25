@@ -16,7 +16,7 @@ const LineCallback = () => {
     const handleLogin = async (code: string) => {
       try {
         // バックエンドのLINEログイン用APIエンドポイントにリクエストを送信
-        const response = await api.post('/api/auth/line/callback/', { code });
+        const response = await api.post('/api/line/callback/', { code });
 
         // レスポンスにトークンが含まれているか確認
         if (response.data.access && response.data.refresh) {

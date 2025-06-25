@@ -19,13 +19,21 @@ const AttendanceManagement: React.FC = () => {
     try {
       const year = month.getFullYear();
       const monthNum = month.getMonth() + 1;
-      const response = await api.get("/admin/configured-dates/", {
+      const response = await api.get("/api/admin/configured-dates/", {
         params: { year, month: monthNum },
       });
+      
+      // response.dataが配列でない場合にエラーが発生している
       const dates = response.data.map((dateStr: string) => new Date(dateStr));
       setConfiguredDates(dates);
-    } catch (error) {
+
+    } catch (error: any) { // errorにany型を指定
       console.error("設定済み日付の取得に失敗しました:", error);
+      
+      // ★★★ 以下の2行を追加して、エラーレスポンスの中身を確認します ★★★
+      if (error.response) {
+        console.log("サーバーからのエラー応答:", error.response.data);
+      }
     }
   }, []);
 
@@ -39,7 +47,7 @@ const AttendanceManagement: React.FC = () => {
     setIsSubmitting(true);
     try {
       const dateStr = format(date, "yyyy-MM-dd");
-      const response = await api.get("/admin/available-slots/", {
+      const response = await api.get("/api/admin/available-slots/", {
         params: { date: dateStr },
       });
       setTimeSlots(response.data);
@@ -71,7 +79,7 @@ const AttendanceManagement: React.FC = () => {
         .map((slot) => slot.time);
       const dateStr = format(selectedDate, "yyyy-MM-dd");
 
-      await api.post("/admin/available-slots/", {
+      await api.post("/api/admin/available-slots/", {
         date: dateStr,
         times: availableTimes,
       });

@@ -88,7 +88,7 @@ api.interceptors.response.use(
           );
           localStorage.removeItem("adminAccessToken");
           localStorage.removeItem("adminRefreshToken");
-          window.location.href = "/login";
+          window.location.href = "/admin";
           return Promise.reject(refreshError);
         }
       }

@@ -47,7 +47,7 @@ const ReservationList: React.FC = () => {
         selectedStatuses.forEach((status) => params.append("status", status));
       }
       
-      const response = await api.get('/admin/reservations/', { params });
+      const response = await api.get('/api/admin/reservations/', { params });
       const sorted = response.data.sort(
         (a: Reservation, b: Reservation) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()
       );
@@ -92,7 +92,7 @@ const ReservationList: React.FC = () => {
   };
 
   const handleRowClick = (reservationNumber: string) => {
-    navigate(`/admin/reservations/${reservationNumber}`);
+    navigate(`/api/admin/reservations/${reservationNumber}`);
   };
   
   if (loading) return <p>読み込み中...</p>;

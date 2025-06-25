@@ -24,7 +24,6 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
 from pathlib import Path
-from django.contrib.auth.models import User
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
@@ -38,6 +37,7 @@ from .models import (
     Salon,
     Service,
     WeeklyDefaultSchedule,
+    Customer,
 )
 from .notifications import send_line_notification
 from .serializers import (
@@ -109,7 +109,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
     lookup_field = "reservation_number"
 
     def get_serializer_class(self):
-        if self.action == "create":
+        if self.action == 'create':
             return ReservationCreateSerializer
         return ReservationSerializer
     
@@ -144,48 +144,29 @@ class ReservationViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(status_query)
                 
         return queryset.order_by('-start_time') # 予約日時でソート
+    
+    def get_serializer_context(self):
+        """
+        シリアライザに渡すコンテキストを定義する。
+        """
+        context = super().get_serializer_context()
+        # ログインユーザーがCustomerインスタンスであれば、そのline_user_idをコンテキストに追加
+        if isinstance(self.request.user, Customer):
+            context['line_user_id'] = self.request.user.line_user_id
+        return context
 
     def create(self, request, *args, **kwargs):
+        """
+        新しい予約を作成し、メールを送信し、作成された予約の詳細を返す。
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        validated_data = serializer.validated_data
 
-        try:
-            customer = request.user.customer_profile
-        except Customer.DoesNotExist:
-            return Response({'error': 'Customer profile not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        # perform_createを呼び出し、作成された予約インスタンスを受け取る
+        reservation = self.perform_create(serializer)
 
-        # フォームの入力内容で顧客情報を更新
-        # .get(key, default_value)を使い、入力がなければ既存の値を維持
-        customer.name = validated_data.get('customer_name', customer.name)
-        customer.phone_number = validated_data.get('customer_phone', customer.phone_number)
-        
-        # Emailはユニーク制約があるため、慎重に更新
-        new_email = validated_data.get('customer_email')
-        if new_email and new_email != customer.email:
-             if Customer.objects.filter(email=new_email).exclude(pk=customer.pk).exists():
-                 return Response(
-                     {'error': {'customer_email': 'このメールアドレスは既に使用されています。'}},
-                     status=status.HTTP_400_BAD_REQUEST
-                 )
-             customer.email = new_email
-        
-        customer.save()
-        
-        # --- 予約作成 ---
-        service = validated_data["service"]
-        start_time = validated_data["start_time"]
-        end_time = start_time + timedelta(minutes=service.duration_minutes)
-
-        reservation = Reservation.objects.create(
-            customer=customer,
-            salon=validated_data["salon"],
-            service=service,
-            start_time=start_time,
-            end_time=end_time,
-            status="pending",
-        )
-
+        # --- ここから通知処理 ---
+        # 受け取った予約インスタンスを使ってメールやLINEのメッセージを作成
         try:
             message = (
                 f"新しい予約が入りました！\n\n"
@@ -215,19 +196,25 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 f"https://momonail-frontend.onrender.com/check\n\n"
                 f"MomoNail"
             )
-
             from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@momonail.com")
             recipient_list = [reservation.customer.email]
             send_mail(subject, message, from_email, recipient_list)
         except Exception as e:
             print(f"Failed to send reservation received email: {e}")
 
+        # --- レスポンス作成 ---
         headers = self.get_success_headers(serializer.data)
-        return Response(
-            ReservationSerializer(reservation).data,
-            status=status.HTTP_201_CREATED,
-            headers=headers,
-        )
+        # 詳細表示用のシリアライザでレスポンスデータを作成
+        response_serializer = ReservationSerializer(reservation, context=self.get_serializer_context())
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    # ★★★ perform_createメソッドを修正 ★★★
+    def perform_create(self, serializer):
+        """
+        予約作成時に、ログイン中の顧客情報を自動で紐付け、
+        作成した予約インスタンスを返す。
+        """
+        serializer.save(customer=self.request.user)
     
     @action(detail=True, methods=['post'])
     def confirm(self, request, reservation_number=None):
@@ -752,14 +739,6 @@ class LineLoginCallbackView(APIView):
             client_secret = os.environ.get('LINE_CHANNEL_SECRET')
             redirect_uri = os.environ.get('LINE_REDIRECT_URI')
 
-            # --- ↓↓↓ デバッグ用のprint文を追加 ↓↓↓ ---
-            print("--- Sending to LINE API ---")
-            print(f"redirect_uri: {redirect_uri}")
-            print(f"client_id: {client_id}")
-            print(f"code: {code}")
-            print("---------------------------")
-            # --- ↑↑↑ ここまで追加 ↑↑↑ ---
-
             token_payload = {
                 'grant_type': 'authorization_code',
                 'code': code,
@@ -785,21 +764,23 @@ class LineLoginCallbackView(APIView):
 
         # 2. 顧客情報の取得または新規作成
         try:
+            # line_user_idをキーに顧客情報を取得または作成
             customer, created = Customer.objects.get_or_create(
                 line_user_id=line_user_id,
-                defaults={'name': display_name}
+                # 新規作成の場合のデフォルト値を設定
+                defaults={
+                    'line_display_name': display_name,
+                    'name': display_name  # nameフィールドにも初期値として設定
+                }
             )
 
-            # 名前が更新されていればDBも更新
-            if not created and customer.name != display_name:
-                customer.name = display_name
-                customer.save()
+            # 既存顧客の場合、LINEの表示名が変更されていたら更新
+            if not created and customer.line_display_name != display_name:
+                customer.line_display_name = display_name
+                customer.save(update_fields=['line_display_name'])
 
-            # 3. Customer情報を使って手動でJWTを生成
+            # --- JWT生成処理 (変更なし) ---
             refresh = RefreshToken()
-            
-            # ペイロードに 'line_user_id' を含める
-            # これがステップ1で作成したカスタム認証バックエンドで使われる
             refresh['line_user_id'] = customer.line_user_id
             
             return Response({

@@ -449,29 +449,13 @@ const ServiceAndReservationPicker: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
-                      電話番号
+                      電話番号(ハイフンなし)
                     </label>
                     <input
                       type="tel"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       className="w-full p-2 border rounded mt-1"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="customer-phone"
-                      className="block text-gray-700 font-semibold mb-1"
-                    >
-                      電話番号 (任意)
-                    </label>
-                    <input
-                      type="tel"
-                      id="customer-phone"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="090-XXXX-XXXX"
                     />
                   </div>
                   {submitting && (

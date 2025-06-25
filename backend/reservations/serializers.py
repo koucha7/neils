@@ -46,22 +46,63 @@ class ReservationSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ReservationCreateSerializer(serializers.ModelSerializer):
-    # 顧客情報はビュー側で処理するため、このシリアライザからは顧客情報を削除
-    # 代わりに、予約作成時にフロントエンドから送られてくる顧客情報を定義する
-    customer_name = serializers.CharField(required=False, allow_blank=True, help_text="予約時に更新する場合の顧客名")
-    customer_email = serializers.EmailField(required=False, allow_blank=True, allow_null=True, help_text="予約時に更新する場合のメールアドレス")
-    customer_phone = serializers.CharField(required=False, allow_blank=True, help_text="予約時に更新する場合の電話番号")
+    # フロントエンドから顧客情報を受け取るためのフィールドを定義
+    # これらはDBには直接保存しないため、write_only=Trueとする
+    customer_name = serializers.CharField(write_only=True, label="氏名")
+    customer_email = serializers.EmailField(write_only=True, label="メールアドレス")
+    customer_phone = serializers.CharField(write_only=True, required=False, allow_blank=True, label="電話番号")
 
     class Meta:
         model = Reservation
         fields = [
-            'salon', 
-            'service', 
-            'start_time',
-            'customer_name',
-            'customer_email',
-            'customer_phone',
+            'salon', 'service', 'start_time',
+            'customer_name', 'customer_email', 'customer_phone'
         ]
+
+    def create(self, validated_data):
+        """
+        予約作成時の顧客情報の処理をハンドルする。
+        line_user_idの有無で処理を完全に分岐させる。
+        """
+        # ビューから渡された line_user_id を取得
+        line_user_id = self.context.get('line_user_id')
+
+        # validated_dataから顧客情報と予約情報を分離
+        customer_name = validated_data.pop('customer_name')
+        customer_email = validated_data.pop('customer_email')
+        customer_phone = validated_data.pop('customer_phone', '')
+        
+        customer_obj = None # 予約に紐付ける顧客オブジェクト
+
+        if line_user_id:
+            # --- ケースA: LINEログインユーザーの場合 ---
+            try:
+                # 渡されたline_user_idで顧客情報を取得
+                customer_obj = Customer.objects.get(line_user_id=line_user_id)
+                
+                # フォームから送信された内容で、既存の顧客情報を更新
+                customer_obj.name = customer_name
+                customer_obj.email = customer_email
+                customer_obj.phone_number = customer_phone
+                customer_obj.save()
+
+            except Customer.DoesNotExist:
+                # このルートは基本的にありえないが、念のためエラーハンドリング
+                raise serializers.ValidationError("ログイン中の顧客情報が見つかりません。")
+        else:
+            # --- ケースB: ゲスト予約の場合 ---
+            # メールアドレスをキーに顧客を検索または新規作成
+            customer_obj, created = Customer.objects.update_or_create(
+                email=customer_email,
+                defaults={
+                    'name': customer_name,
+                    'phone_number': customer_phone,
+                }
+            )
+        
+        # 最終的に決定した顧客オブジェクトと、残りの予約情報で予約を作成
+        reservation = Reservation.objects.create(customer=customer_obj, **validated_data)
+        return reservation
         
 class NotificationSettingSerializer(serializers.ModelSerializer):
     class Meta:

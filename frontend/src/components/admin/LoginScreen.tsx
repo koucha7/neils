@@ -14,7 +14,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setError("");
     try {
-      const response = await api.post("/admin/token/", { username, password });
+      const response = await api.post("/api/token/", { username, password });
       localStorage.setItem("adminAccessToken", response.data.access);
       localStorage.setItem("adminRefreshToken", response.data.refresh);
       onLoginSuccess();
