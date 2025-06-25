@@ -103,7 +103,8 @@ class DateScheduleViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 class ReservationViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [CustomerJWTAuthentication]
+    permission_classes = [IsAuthenticated] # 認証済み顧客のみアクセスを許可
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
     lookup_field = "reservation_number"
