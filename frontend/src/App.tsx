@@ -1,30 +1,62 @@
-// MomoNail/frontend/src/App.tsx の例
-// import React from 'react'; // ★この行を削除またはコメントアウト
-import './App.css';
-import { Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+
+// --- コンポーネントのインポート ---
+// 顧客向け
+import LandingPage from './components/customer/LandingPage';
+import ServiceAndReservationPicker from './components/customer/ServiceAndReservationPicker';
+import ReservationComplete from './components/customer/ReservationComplete';
+import ReservationCheck from './components/customer/ReservationCheck';
+import ReservationDetail from './components/customer/ReservationDetail';
+import CancellationComplete from './components/customer/CancellationComplete';
+import LineCallback from './components/customer/LineCallback';
+import LoginFailed from './components/customer/LoginFailed';
+import Manual from './components/customer/Manual';
+import ConfirmReservation from './components/customer/ConfirmReservation';
+
+// 管理者向け
+import AdminPanel from './components/admin/AdminPanel';
+
+// 404ページ用のコンポーネント
+const NotFound = () => (
+  <div style={{ padding: '2rem', textAlign: 'center' }}>
+    <h2>404 - ページが見つかりません</h2>
+    <p>お探しのページは存在しないか、移動した可能性があります。</p>
+    <Link to="/" style={{ color: 'blue', textDecoration: 'underline' }}>トップページに戻る</Link>
+  </div>
+);
+
 
 function App() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-500 to-indigo-600 flex flex-col justify-center items-center p-4">
-      <header className="text-center text-white mb-12">
-        <h1 className="text-5xl font-extrabold tracking-tight">NailMomo</h1>
-      </header>
+    // ▼▼▼ ここを修正 ▼▼▼
+    // Routerを一番外側にして、アプリケーション全体でルーティング機能を有効にします
+    <Router>
+      {/* AuthProviderをRouterの内側に配置します */}
+      <AuthProvider>
+        <Routes>
+          {/* --- 顧客向けページのルーティング --- */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/reserve" element={<ServiceAndReservationPicker />} />
+          <Route path="/reservation-complete/:reservationNumber" element={<ReservationComplete />} />
+          <Route path="/check" element={<ReservationCheck />} />
+          <Route path="/reservations/:reservationNumber" element={<ReservationDetail />} />
+          <Route path="/cancellation-complete" element={<CancellationComplete />} />
+          {/* 注意: LINEのコールバックURLが /callback の場合、バックエンドの /api/line/callback と混同しないように */}
+          <Route path="/callback" element={<LineCallback />} />
+          <Route path="/login-failed" element={<LoginFailed />} />
+          <Route path="/manual" element={<Manual />} />
+          <Route path="/confirm-reservation" element={<ConfirmReservation />} />
+          
+          {/* --- 管理者向けページのルーティング --- */}
+          <Route path="/admin/*" element={<AdminPanel />} />
 
-      <main className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-8">
-        <Link to="/reserve" className="bg-white text-indigo-700 px-8 py-4 rounded-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition duration-300 ease-in-out flex items-center justify-center text-xl font-semibold">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          今すぐ予約する
-        </Link>
-        <Link to="/check" className="bg-white text-purple-700 px-8 py-4 rounded-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition duration-300 ease-in-out flex items-center justify-center text-xl font-semibold">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          予約を確認
-        </Link>
-      </main>
-    </div>
+          {/* --- どのルートにも一致しなかった場合の404ページ --- */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </AuthProvider>
+    </Router>
+    // ▲▲▲ ここまで修正 ▲▲▲
   );
 }
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'temporary-insecure-key-for-build')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'temporary-secret-key-for-building')
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') # ★環境変数で設定 (Renderで設定)
 
@@ -59,7 +59,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware', 
     'django.middleware.common.CommonMiddleware',
-    #'django.middleware.csrf.CsrfViewMiddleware', # CORSがCSRFより前にあることを確認
+    'django.middleware.csrf.CsrfViewMiddleware', # CORSがCSRFより前にあることを確認
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -91,19 +91,20 @@ TEMPLATES = [
 # REST Frameworkの設定
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        # ▼▼▼ この行を追加 ▼▼▼
+        # あなたのカスタム認証クラスをここに追加します
+        'reservations.authentication.CustomerJWTAuthentication', # ★この行を追加/変更
+        'rest_framework_simplejwt.authentication.JWTAuthentication', # 必要であれば残す
         'rest_framework.authentication.SessionAuthentication',
-        # ▲▲▲ この行を追加 ▲▲▲
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ),
 }
 
 # Google Calendar API & LINE API Keys
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
-LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
+ADMIN_LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
+CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN')
 LINE_USER_ID = os.environ.get('LINE_USER_ID')
 
 # メールの設定 (Gmailを使う例)
@@ -117,15 +118,57 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@yourdomain.co
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # アクセストークンの有効期間
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),   # リフレッシュトークンの有効期間
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id', # ★ 'line_user_id' に変更していた場合は元に戻す！
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
 }
 
 # 環境変数からCORS許可オリジンを取得
-CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+""" CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',') if CORS_ALLOWED_ORIGINS_STR.strip() else []
-
+ """
 # 開発モード（DEBUG=True）の場合、ローカルのフロントエンドを許可リストに追加
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
-LOGIN_URL = '/api/token/' 
+DEBUG = True
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    # 将来的にデプロイするフロントエンドのURLも追加できます
+    # "https://your-frontend-domain.com", 
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# 全ての標準的なHTTPヘッダーを許可する
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'authorization',
+    'content-type',
+    'origin',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Renderなどの本番環境では、CSRF信頼済みオリジンも設定するとより安全です
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://momonail.onrender.com', # 本番環境用
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+ALLOWED_HOSTS = ['*']
+
+LOGIN_URL = '/api/token/'

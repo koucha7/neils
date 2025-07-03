@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import api from "../api/axiosConfig";
+import api from "../../api/axiosConfig";
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale/ja";
 import axios from "axios";
+import { useAuth } from '../../context/AuthContext';
 
 // react-datepickerを日本語化
 registerLocale("ja", ja);
@@ -28,6 +29,7 @@ interface Service {
 
 const ServiceAndReservationPicker: React.FC = () => {
   // --- 1. 全てのフックをコンポーネントの最上位で定義 ---
+  const { isAuthenticated: isLoggedIn} = useAuth();
   const navigate = useNavigate();
 
   // State Hooks
@@ -49,12 +51,34 @@ const ServiceAndReservationPicker: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [bookableDates, setBookableDates] = useState<string[]>([]);
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(true);
 
   const isBookable = (date: Date) => {
     const formattedDate = format(date, "yyyy-MM-dd");
     // 予約可能日リストに含まれている日付のみtrueを返す
     return bookableDates.includes(formattedDate);
   };
+
+  useEffect(() => {
+    const fetchCustomerData = async () => {
+      if (isLoggedIn) {
+        setIsLoadingCustomer(true);
+        try {
+          const response = await api.get("/api/users/me/");
+          setCustomerName(response.data.name || "");
+          setCustomerEmail(response.data.email || "");
+          setCustomerPhone(response.data.phone_number || "");
+        } catch (error) {
+          console.error("顧客情報の取得に失敗しました:", error);
+        } finally {
+          setIsLoadingCustomer(false);
+        }
+      } else {
+        setIsLoadingCustomer(false);
+      }
+    };
+    fetchCustomerData();
+  }, [isLoggedIn]);
 
   // Effect Hook for initial data fetching
   useEffect(() => {
@@ -230,12 +254,28 @@ const ServiceAndReservationPicker: React.FC = () => {
   }, []);
 
   // --- 2. 条件分岐による早期returnは、全てのフック定義の後に記述 ---
-  if (loading)
+  if (!isLoggedIn) {
+    return (
+      <div className="text-center p-8 border rounded-lg bg-gray-50">
+        <p className="text-lg">
+          予約をするには、まずLINEでログインしてください。
+        </p>
+        {/* ここにLINEログインボタンを配置するとより親切です */}
+      </div>
+    );
+  }
+  if (isLoadingCustomer) {
+    return <p>顧客情報を読み込んでいます...</p>;
+  }
+  if (loading) {
     return <div className="text-center p-10">情報を読み込み中...</div>;
-  if (error)
+  }
+  if (error) {
     return <div className="text-center p-10 text-red-500">エラー: {error}</div>;
-  if (!salon)
+  }
+  if (!salon) {
     return <div className="text-center p-10">サロン情報が見つかりません。</div>;
+  }
 
   // --- 3. レンダリング ---
   return (
@@ -386,53 +426,36 @@ const ServiceAndReservationPicker: React.FC = () => {
                     </p>
                   </div>
                   <div>
-                    <label
-                      htmlFor="customer-name"
-                      className="block text-gray-700 font-semibold mb-1"
-                    >
-                      お名前 <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-700">
+                      お名前
                     </label>
                     <input
                       type="text"
-                      id="customer-name"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
-                      required
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="山田 太郎"
+                      className="w-full p-2 border rounded mt-1"
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="customer-email"
-                      className="block text-gray-700 font-semibold mb-1"
-                    >
-                      メールアドレス <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-700">
+                      メールアドレス
                     </label>
                     <input
                       type="email"
-                      id="customer-email"
                       value={customerEmail}
                       onChange={(e) => setCustomerEmail(e.target.value)}
-                      required
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="your.email@example.com"
+                      className="w-full p-2 border rounded mt-1"
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="customer-phone"
-                      className="block text-gray-700 font-semibold mb-1"
-                    >
-                      電話番号 (任意)
+                    <label className="block text-sm font-medium text-gray-700">
+                      電話番号(ハイフンなし)
                     </label>
                     <input
                       type="tel"
-                      id="customer-phone"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="090-XXXX-XXXX"
+                      className="w-full p-2 border rounded mt-1"
                     />
                   </div>
                   {submitting && (

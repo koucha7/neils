@@ -1,6 +1,62 @@
 from django.db import models
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.validators import MinValueValidator, MaxValueValidator
-from datetime import timedelta
+from django.utils import timezone
+from django.conf import settings
+import uuid #
+
+class UserManager(BaseUserManager):
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError('The Email field must be set')
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self.create_user(email, password, **extra_fields)
+
+class User(AbstractBaseUser, PermissionsMixin):
+    username = models.CharField(max_length=150, unique=True)
+    email = models.EmailField(blank=True)
+    is_staff = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    date_joined = models.DateTimeField(default=timezone.now)
+
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
+        related_name="reservations_user_set",
+        related_query_name="user",
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name="reservations_user_permissions_set",
+        related_query_name="user",
+    )
+
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['email']
+
+    objects = UserManager()
+
+    def __str__(self):
+        return self.email
 
 class Salon(models.Model):
     class Meta:
@@ -62,26 +118,49 @@ class Service(models.Model):
 
     def __str__(self):
         return f"{self.salon.name} - {self.name}"
+    
+class Customer(models.Model):
+    id = models.BigAutoField(primary_key=True)
+
+    line_user_id = models.CharField(
+        "LINEユーザーID", max_length=255, unique=True, null=True, blank=True,
+        help_text="LINEでの通知や連携に使用する一意のIDです。"
+    )
+    name = models.CharField("氏名", max_length=100)
+    email = models.EmailField(
+        'メールアドレス', unique=True, null=True, blank=True,
+        help_text="顧客を一意に識別するために使用します。"
+    )
+    phone_number = models.CharField("電話番号", max_length=20, blank=True)
+    line_display_name = models.CharField("LINE表示名", max_length=100, blank=True, help_text="LINEプロフィールの表示名です。")
+    line_picture_url = models.URLField("LINEプロフィール画像URL", max_length=2048, blank=True)
+    notes = models.TextField("備考", blank=True, help_text="顧客に関するメモなどを記載します。")
+    created_at = models.DateTimeField("作成日時", auto_now_add=True)
+    updated_at = models.DateTimeField("更新日時", auto_now=True)
+
+    @property
+    def is_authenticated(self):
+        return True
+    @property
+    def is_anonymous(self):
+        return False
+    def __str__(self):
+        return self.name
 
 class Reservation(models.Model):
-    customer_name = models.CharField(max_length=100)
-    customer_phone = models.CharField(max_length=20, blank=True, null=True)
-    customer_email = models.EmailField()
+    reservation_number = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    
+    # on_deleteをSET_NULLにすることで、顧客が削除されても予約は残る
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, related_name='reservations', verbose_name="顧客", null=True)
+    
     salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='reservations')
-    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='reservations')
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField(null=True, blank=True)
-    reservation_number = models.CharField(max_length=20, unique=True)
-    status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('confirmed', 'Confirmed'), ('cancelled', 'Cancelled'), ('completed', 'Completed')], default='pending')
-    created_at = models.DateTimeField(auto_now_add=True)
-
+    service = models.ForeignKey(Service, on_delete=models.CASCADE)
+    start_time = models.DateTimeField(null=True)
+    end_time = models.DateTimeField(null=True)
+    status = models.CharField(max_length=20, choices=[('pending', '保留中'), ('confirmed', '確定済み'), ('cancelled', 'キャンセル済み')], default='pending')
     def __str__(self):
-        return f"予約ID: {self.reservation_number} ({self.customer_name} at {self.salon.name} on {self.start_time})"
-
-    def save(self, *args, **kwargs):
-        if not self.end_time and self.start_time and self.service:
-            self.end_time = self.start_time + timedelta(minutes=self.service.duration_minutes)
-        super().save(*args, **kwargs)
+        customer_name = self.customer.name if self.customer else "N/A"
+        return f"{customer_name} - {self.start_time.strftime('%Y-%m-%d %H:%M')}"
 
 class NotificationSetting(models.Model):
     """
