@@ -46,15 +46,15 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles', # ← この行が追加されているか確認！
     'rest_framework',
     'rest_framework_simplejwt', # ★追加
-    'corsheaders',
     'reservations',  # この行が追加されているか確認！
+    'corsheaders',
     # あなたのカスタムアプリなど
     # 'your_app_name',
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # ここに厳密に配置
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.security.SecurityMiddleware', # ここに厳密に配置
     'whitenoise.middleware.WhiteNoiseMiddleware', # このミドルウェアはDjangoアプリが静的ファイルを配信する時に使われます
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware', 
@@ -126,18 +126,15 @@ SIMPLE_JWT = {
 }
 
 # 環境変数からCORS許可オリジンを取得
-""" CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',') if CORS_ALLOWED_ORIGINS_STR.strip() else []
- """
-# 開発モード（DEBUG=True）の場合、ローカルのフロントエンドを許可リストに追加
-DEBUG = True
 
-CORS_ALLOWED_ORIGINS = [
+""" CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     # 将来的にデプロイするフロントエンドのURLも追加できます
     # "https://your-frontend-domain.com", 
-]
+] """
 
 CORS_ALLOW_METHODS = [
     'DELETE',
