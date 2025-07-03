@@ -2,11 +2,14 @@
 # exit on error
 set -o errexit
 
-# PoetryやPipなどの依存関係をインストール
 pip install -r requirements.txt
 
-# 静的ファイルを集める
-python manage.py collectstatic --no-input
-
-# ★★★ データベースのマイグレーションをここに記述 ★★★
+# ▼▼▼ この2行を追記 ▼▼▼
+# データベースの構造変更を検知し、マイグレーションファイルを作成します
+python manage.py makemigrations
+# 作成されたマイグレーションファイルを元に、データベースに適用します
 python manage.py migrate
+# ▲▲▲ ここまで追記 ▲▲▲
+
+# 静的ファイルを集めるコマンド（必要に応じて）
+# python manage.py collectstatic --no-input
