@@ -26,6 +26,7 @@ urlpatterns = [
     path('bookable-dates/', views.BookableDatesView.as_view(), name='bookable-dates'),
     path('users/me/', views.me, name='me'),
     path('my-reservations/',views.MyReservationsView.as_view(), name='my_reservations'),
+    path('line/webhook/', views.LineWebhookView.as_view(), name='line-webhook'),
  
     # --- Admin-specific endpoints ---
     path('admin/reservations/', views.AdminReservationListView.as_view(), name='admin-reservation-list'),

@@ -2,8 +2,13 @@ import os
 import uuid
 import calendar
 import requests
+import hashlib
+import hmac
+import base64
+import json
 from .authentication import CustomerJWTAuthentication
 from datetime import datetime, time, timedelta, date
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db.models import Q, Sum, Count
@@ -984,3 +989,77 @@ class AdminLineLoginView(APIView):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         })
+
+
+@method_decorator(csrf_exempt, name='dispatch') # CSRF保護を無効化
+class LineWebhookView(APIView):
+    """
+    顧客向けLINEアカウントへのメッセージを受信し、管理者に転送するためのWebhook
+    """
+    authentication_classes = [] # このAPIは認証不要
+    permission_classes = [AllowAny] # このAPIは誰でもアクセス可能
+
+    def post(self, request, *args, **kwargs):
+        # LINEプラットフォームからのリクエストであることを検証
+        signature = request.META.get('HTTP_X_LINE_SIGNATURE')
+        
+        # ▼▼▼【重要】顧客向けLINEアカウントのチャネルシークレットを使用します ▼▼▼
+        channel_secret = os.environ.get('CUSTOMER_LINE_CHANNEL_SECRET') 
+
+        if not channel_secret:
+            print("エラー: 顧客向けLINEチャネルシークレットが設定されていません。(CUSTOMER_LINE_CHANNEL_SECRET)")
+            return HttpResponseForbidden()
+
+        # リクエストボディを取得
+        body = request.body.decode('utf-8')
+
+        # 署名を検証
+        try:
+            hash = hmac.new(channel_secret.encode('utf-8'), body.encode('utf-8'), hashlib.sha256).digest()
+            expected_signature = base64.b64encode(hash).decode('utf-8')
+
+            if not hmac.compare_digest(signature, expected_signature):
+                print("署名が一致しません。不正なリクエストの可能性があります。")
+                return HttpResponseForbidden()
+        except Exception as e:
+            print(f"署名検証中にエラー: {e}")
+            return HttpResponseForbidden()
+
+
+        # --- ここからがメッセージ処理 ---
+        try:
+            events = json.loads(body).get('events', [])
+            for event in events:
+                # テキストメッセージイベントの場合のみ処理
+                if event.get('type') == 'message' and event.get('message', {}).get('type') == 'text':
+                    line_user_id = event.get('source', {}).get('userId')
+                    message_text = event.get('message', {}).get('text')
+                    
+                    if not line_user_id or not message_text:
+                        continue
+
+                    # 送信元の顧客情報を検索
+                    try:
+                        customer = Customer.objects.get(line_user_id=line_user_id)
+                        customer_name = customer.name or "名前未登録のお客様"
+                    except Customer.DoesNotExist:
+                        customer_name = "新規のお客様"
+
+                    # 管理者への転送メッセージを作成
+                    forward_message = (
+                        f"【お客様からのメッセージ】\n"
+                        f"送信者: {customer_name}様\n\n"
+                        f"--- メッセージ本文 ---\n"
+                        f"{message_text}"
+                    )
+                    
+                    # 管理者用LINEアカウントに通知を送信
+                    send_admin_line_notification(forward_message)
+
+        except Exception as e:
+            print(f"Webhook処理中にエラーが発生しました: {e}")
+            return HttpResponseBadRequest()
+
+        # LINEサーバーに正常に処理したことを伝える
+        return HttpResponse(status=200)
+
