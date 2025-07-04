@@ -20,6 +20,7 @@ interface AuthContextType {
 
 // Contextの作成
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Contextを提供するAuthProviderコンポーネント
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -28,27 +29,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   // ログイン処理
-  const login = async (code: string, redirectPath: string = '/reserve') => { // ★ 第2引数を追加
-  try {
-    const response = await api.post('/api/line/callback/', { code });
-    const { access, refresh } = response.data;
+  const login = async (code: string, redirectPath: string = '/reserve') => {
+    const MAX_RETRIES = 3; // 最大リトライ回数
+    let lastError: any = null;
 
-    if (access && refresh) {
-      localStorage.setItem('access_token', access);
-      localStorage.setItem('refresh_token', refresh);
-      api.defaults.headers.common['Authorization'] = `Bearer ${access}`;
-      
-      await fetchUser();
-      
-      navigate(redirectPath); // ★ 引数で受け取ったパスにリダイレクト
-    } else {
-      throw new Error("Token not found in response");
+    // 最大3回までログインを試行します
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`ログイン試行 ${attempt}回目...`);
+        const response = await api.post('/api/line/callback/', { code });
+        const { access, refresh } = response.data;
+
+        if (access && refresh) {
+          localStorage.setItem('access_token', access);
+          localStorage.setItem('refresh_token', refresh);
+          api.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+          
+          await fetchUser();
+          navigate(redirectPath);
+          return; // ログイン成功！処理を終了します
+        }
+        // トークンが返ってこなかった場合もエラーとして扱う
+        throw new Error("レスポンスにトークンが含まれていません");
+
+      } catch (error: any) {
+        lastError = error;
+        console.error(`ログイン試行 ${attempt}回目 失敗:`, error);
+
+        // ネットワークエラーやサーバーエラー(500番台)の場合のみリトライ
+        const isRetryable = error.code === 'ERR_NETWORK' || (error.response && error.response.status >= 500);
+
+        if (isRetryable && attempt < MAX_RETRIES) {
+          // 待機時間を徐々に長くする（例: 2秒、4秒）
+          const delay = Math.pow(2, attempt) * 1000; 
+          console.log(`${delay / 1000}秒後に再試行します...`);
+          await sleep(delay);
+        } else {
+          // リトライ不可能なエラーか、最大試行回数に達した場合はループを抜ける
+          break;
+        }
+      }
     }
-    } catch (error) {
-      console.error("Login failed:", error);
-      logout(); // 失敗時はログアウト処理を呼ぶ
-      navigate('/login-failed');
-    }
+
+    // すべてのリトライが失敗した場合
+    console.error("すべてのログイン試行に失敗しました:", lastError);
+    logout(); // 最終的に失敗した場合のみログアウト処理
+    navigate('/login-failed');
   };
 
   // ユーザー情報を取得する関数

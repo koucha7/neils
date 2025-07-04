@@ -42,6 +42,7 @@ services:
       LINE_CHANNEL_ID: '2007607612'
       LINE_CHANNEL_SECRET: '2283496d397d979c7d772ed4e192bd64'
       LINE_REDIRECT_URI: 'http://localhost:5173/callback'
+      FRONTEND_URL: 'http://localhost:5173'
       ADMIN_LINE_USER_ID: 'U65ee793d92ae926825335d2ed20dd52a'
       # 特殊文字を含むトークンも、この方法なら確実に読み込まれます
       ADMIN_LINE_CHANNEL_ACCESS_TOKEN: "sy0PmLbVkBQTpJliHMpjpXOPNFiXDSxMVBIw8YVczJlqmbbsacUb7Y2pVQ6JFnAFzZFUgEnY75goQSl8f7m7+7QSaFosggx9UtXwo99gj0l0GOIXK8xKFetFJ8blwYy/sZOncK27tbny+aCAyMydBQdB04t89/1O/w1cDnyilFU="

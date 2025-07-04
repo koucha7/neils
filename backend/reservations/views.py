@@ -2,13 +2,12 @@ import os
 import uuid
 import calendar
 import requests
-from .models import Service, Reservation, NotificationSetting, AvailableTimeSlot, Customer
-from .serializers import NotificationSettingSerializer, CustomerSerializer, UserSerializer
 from .authentication import CustomerJWTAuthentication
 from datetime import datetime, time, timedelta, date
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db.models import Q, Sum, Count
+from django.contrib.auth.models import User
 from django.db.models.functions import TruncMonth, TruncDate
 from django.utils import timezone
 from google.auth.exceptions import GoogleAuthError
@@ -16,7 +15,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from rest_framework import status, viewsets, generics
 from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser 
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -27,6 +26,7 @@ from pathlib import Path
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .notifications import send_line_push_message, send_admin_line_notification
 from .line_utils import get_line_user_profile
+from rest_framework_simplejwt.tokens import RefreshToken
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
@@ -40,7 +40,10 @@ from .models import (
     Service,
     WeeklyDefaultSchedule,
     Customer,
+    AvailableTimeSlot,
+    UserProfile,
 )
+
 from .serializers import (
     DateScheduleSerializer,
     NotificationSettingSerializer,
@@ -49,6 +52,9 @@ from .serializers import (
     SalonSerializer,
     ServiceSerializer,
     WeeklyDefaultScheduleSerializer,
+    CustomerSerializer,
+    UserSerializer,
+    AdminUserSerializer,
 )
 
 class SalonViewSet(viewsets.ModelViewSet):
@@ -848,3 +854,133 @@ def confirm_reservation_and_notify(request):
         message = "お客様の有効なご予約は見つかりませんでした。"
         send_line_push_message(customer.line_user_id, message)
         return Response({"message": "予約が見つからなかったため、その旨をLINEで通知しました。"}, status=status.HTTP_404_NOT_FOUND)
+    
+class AdminUserManagementViewSet(viewsets.ModelViewSet):
+    """
+    管理者が他の管理者ユーザーを作成・管理するためのAPI
+    """
+    # is_staff=True のユーザー（管理者）のみを対象とする
+    queryset = User.objects.filter(is_staff=True)
+    serializer_class = AdminUserSerializer
+    # このAPIは、Django標準のJWT認証（ユーザー名とパスワード）を使用
+    authentication_classes = [JWTAuthentication]
+    # DjangoのIsAdminUser権限（is_staff=Trueのユーザーのみ許可）を設定
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def perform_create(self, serializer):
+        """
+        新しい管理者ユーザーを作成する際の追加処理
+        """
+        # リクエストからパスワードを取得
+        password = self.request.data.get('password')
+        # is_staff=True でユーザーを作成
+        user = serializer.save(is_staff=True)
+        
+        if password:
+            user.set_password(password)
+            user.save()
+        
+        # 同時にUserProfileも作成
+        UserProfile.objects.create(user=user)
+
+    @action(detail=True, methods=['post'], url_path='generate-line-link')
+    def generate_line_link(self, request, pk=None):
+        """
+        指定された管理者ユーザーのLINE連携用リンクを生成する
+        """
+        user = self.get_object()
+        # ユーザーに紐づくUserProfileを取得、なければ作成
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        
+        # 新しい登録トークンを生成して保存
+        profile.line_registration_token = uuid.uuid4()
+        profile.save()
+        
+        # フロントエンドの管理者用登録ページのURLを生成
+        # 例: https://momonail-admin.onrender.com/register-line/xxxxxxxx-xxxx...
+        base_url = os.environ.get('FRONTEND_ADMIN_URL', 'http://localhost:5173') # 環境変数がなければローカルを指す
+        registration_url = f"{base_url}/register-line/{profile.line_registration_token}"
+        
+        return Response({'registration_link': registration_url})
+
+class AdminLineLinkView(APIView):
+    """
+    管理者ユーザーアカウントとLINEアカウントを連携させるためのAPI
+    """
+    # このAPIは認証不要でアクセスできる必要がある
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        # フロントエンドから送られてくる登録トークンとLINEの認証コードを取得
+        token = request.data.get('token')
+        code = request.data.get('code')
+
+        if not token or not code:
+            return Response(
+                {"error": "トークンと認証コードは必須です。"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 1. 提供されたトークンでUserProfileを検索
+        try:
+            profile = UserProfile.objects.get(line_registration_token=token)
+        except UserProfile.DoesNotExist:
+            return Response({"error": "無効な登録リンクです。"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. LINEの認証コードを使って、LINEのプロフィール情報を取得
+        try:
+            line_profile = get_line_user_profile(code, flow_type='admin')
+            line_user_id = line_profile.get('sub')
+            if not line_user_id:
+                raise ValueError("LINEプロファイルからユーザーIDを取得できませんでした。")
+        except Exception as e:
+            return Response({"error": f"LINEとの通信に失敗しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # 3. このLINEアカウントが他の管理者に既に連携されていないか確認
+        if UserProfile.objects.filter(line_user_id=line_user_id).exclude(pk=profile.pk).exists():
+            return Response({"error": "このLINEアカウントは既に使用されています。"}, status=status.HTTP_409_CONFLICT)
+
+        # 4. ユーザープロファイルにLINEユーザーIDを保存し、トークンを無効化
+        profile.line_user_id = line_user_id
+        profile.line_registration_token = None # トークンを一度きりにする
+        profile.save()
+
+        return Response({"message": "LINEアカウントの連携が完了しました。"}, status=status.HTTP_200_OK)
+
+
+class AdminLineLoginView(APIView):
+    """
+    連携済みのLINEアカウントで管理者をログインさせるためのAPI
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        code = request.data.get('code')
+        if not code:
+            return Response({"error": "認証コードは必須です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. LINEの認証コードを使って、LINEのプロフィール情報を取得
+        try:
+            line_profile = get_line_user_profile(code, flow_type='admin')
+            line_user_id = line_profile.get('sub')
+            if not line_user_id:
+                raise ValueError("LINEプロファイルからユーザーIDを取得できませんでした。")
+        except Exception as e:
+            return Response({"error": f"LINEとの通信に失敗しました: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # 2. LINEユーザーIDでUserProfileを検索
+        try:
+            profile = UserProfile.objects.get(line_user_id=line_user_id)
+        except UserProfile.DoesNotExist:
+            return Response({"error": "このLINEアカウントはどの管理者にも連携されていません。"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 3. UserProfileからDjangoのUserオブジェクトを取得し、JWTを発行
+        user = profile.user
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        })

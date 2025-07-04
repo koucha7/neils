@@ -1,21 +1,21 @@
 import React, { useState, useCallback } from 'react';
 import {
-  BarChart3, Bell, Calendar, LogOut, Menu as MenuIcon, Scissors, Shield, Users, X
+  BarChart3, Bell, Calendar, LogOut, Menu as MenuIcon, Scissors, Shield, Users, X, ClipboardList
 } from 'lucide-react';
+import { useAdminAuth } from '../../context/AdminAuthContext'; // ★ 管理者用Authフックをインポート
 import LoginScreen from './LoginScreen';
 import ReservationList from './ReservationList';
 import AttendanceManagement from './AttendanceManagement';
 import MenuManagement from './MenuManagement';
-import NotificationSettingsManagement from './NotificationSettingsManagement';
-import CancellationPolicyManagement from './CancellationPolicyManagement';
 import StatisticsPanel from './StatisticsPanel';
+import UserManagement from './UserManagement';
 
 // 表示するページの型定義
-type AdminPage = "reservations" | "schedule" | "menu" | "settings" | "policy" | "statistics";
+type AdminPage = "reservations" | "schedule" | "menu" | "users" | "statistics";
 
 const AdminPanel: React.FC = () => {
-  // --- State Hooks ---
-  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem("adminAccessToken"));
+  // ▼▼▼ 認証状態をAdminAuthContextから取得するように変更 ▼▼▼
+  const { isLoggedIn, logout } = useAdminAuth();
   const [page, setPage] = useState<AdminPage>("reservations");
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 640);
 
@@ -23,14 +23,6 @@ const AdminPanel: React.FC = () => {
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(prev => !prev);
   }, []);
-
-  const handleLoginSuccess = () => setIsLoggedIn(true);
-
-  const handleLogout = () => {
-    localStorage.removeItem("adminAccessToken");
-    localStorage.removeItem("adminRefreshToken");
-    setIsLoggedIn(false);
-  };
   
   const handleSetPage = (selectedPage: AdminPage) => {
     setPage(selectedPage);
@@ -45,23 +37,23 @@ const AdminPanel: React.FC = () => {
       case "reservations": return <ReservationList />;
       case "schedule": return <AttendanceManagement />;
       case "menu": return <MenuManagement />;
-      case "settings": return <NotificationSettingsManagement />;
-      case "policy": return <CancellationPolicyManagement />;
+      case "users": return <UserManagement />;
       case "statistics": return <StatisticsPanel />;
       default: return <ReservationList />;
     }
   };
 
+  // Contextから取得したisLoggedInで判断します
   if (!isLoggedIn) {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+    // onLoginSuccessプロパティは不要なので削除します
+    return <LoginScreen />;
   }
 
   const menuItems: { page: AdminPage; label: string; icon: React.ElementType }[] = [
-    { page: "reservations", label: "予約確認", icon: Users },
+    { page: "reservations", label: "予約確認", icon: ClipboardList },
     { page: "schedule", label: "受付時間設定", icon: Calendar },
     { page: "menu", label: "メニュー管理", icon: Scissors },
-    { page: "settings", label: "通知設定", icon: Bell },
-    { page: "policy", label: "キャンセルポリシー", icon: Shield },
+    { page: "users", label: "ユーザー管理", icon: Users },
     { page: "statistics", label: "統計", icon: BarChart3 },
   ];
 
@@ -91,7 +83,7 @@ const AdminPanel: React.FC = () => {
         </nav>
         <div className="p-2 border-t border-gray-700">
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="w-full text-left flex items-center px-4 py-2 rounded-md hover:bg-gray-700"
           >
             <LogOut className="mr-3" size={20} /> ログアウト

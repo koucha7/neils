@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { AdminAuthProvider } from './context/AdminAuthContext';
 
 // --- コンポーネントのインポート ---
 // 顧客向け
@@ -13,6 +14,8 @@ import LineCallback from './components/customer/LineCallback';
 import LoginFailed from './components/customer/LoginFailed';
 import Manual from './components/customer/Manual';
 import ConfirmReservation from './components/customer/ConfirmReservation';
+import AdminLineRegistration from './components/admin/AdminLineRegistration';
+import AdminLineCallback from './components/admin/AdminLineCallback';
 
 // 管理者向け
 import AdminPanel from './components/admin/AdminPanel';
@@ -34,26 +37,30 @@ function App() {
     <Router>
       {/* AuthProviderをRouterの内側に配置します */}
       <AuthProvider>
-        <Routes>
-          {/* --- 顧客向けページのルーティング --- */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/reserve" element={<ServiceAndReservationPicker />} />
-          <Route path="/reservation-complete/:reservationNumber" element={<ReservationComplete />} />
-          <Route path="/check" element={<ReservationCheck />} />
-          <Route path="/reservations/:reservationNumber" element={<ReservationDetail />} />
-          <Route path="/cancellation-complete" element={<CancellationComplete />} />
-          {/* 注意: LINEのコールバックURLが /callback の場合、バックエンドの /api/line/callback と混同しないように */}
-          <Route path="/callback" element={<LineCallback />} />
-          <Route path="/login-failed" element={<LoginFailed />} />
-          <Route path="/manual" element={<Manual />} />
-          <Route path="/confirm-reservation" element={<ConfirmReservation />} />
-          
-          {/* --- 管理者向けページのルーティング --- */}
-          <Route path="/admin/*" element={<AdminPanel />} />
+        <AdminAuthProvider>
+          <Routes>
+            {/* --- 顧客向けページのルーティング --- */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/reserve" element={<ServiceAndReservationPicker />} />
+            <Route path="/reservation-complete/:reservationNumber" element={<ReservationComplete />} />
+            <Route path="/check" element={<ReservationCheck />} />
+            <Route path="/reservations/:reservationNumber" element={<ReservationDetail />} />
+            <Route path="/cancellation-complete" element={<CancellationComplete />} />
+            {/* 注意: LINEのコールバックURLが /callback の場合、バックエンドの /api/line/callback と混同しないように */}
+            <Route path="/callback" element={<LineCallback />} />
+            <Route path="/login-failed" element={<LoginFailed />} />
+            <Route path="/manual" element={<Manual />} />
+            <Route path="/confirm-reservation" element={<ConfirmReservation />} />
+            
+            {/* --- 管理者向けページのルーティング --- */}
+            <Route path="/admin/*" element={<AdminPanel />} />
+            <Route path="/register-line/:token" element={<AdminLineRegistration />} />
+            <Route path="/admin/callback" element={<AdminLineCallback />} />
 
-          {/* --- どのルートにも一致しなかった場合の404ページ --- */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            {/* --- どのルートにも一致しなかった場合の404ページ --- */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AdminAuthProvider>
       </AuthProvider>
     </Router>
     // ▲▲▲ ここまで修正 ▲▲▲

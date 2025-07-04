@@ -11,4 +11,4 @@ python manage.py migrate
 
 # 3. Gunicornサーバーを起動します
 #    この行が、このスクリプトの最後に実行される命令になります。
-gunicorn momonail_backend_project.wsgi:application
+gunicorn momonail_backend_project.wsgi:application --bind 0.0.0.0:$PORT

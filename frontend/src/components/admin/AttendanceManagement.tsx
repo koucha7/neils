@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale/ja';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, parseISO } from 'date-fns';
 import api from '../../api/axiosConfig';
 
+// 日本語ロケールを登録
 registerLocale("ja", ja);
 
 const AttendanceManagement: React.FC = () => {
@@ -13,7 +14,8 @@ const AttendanceManagement: React.FC = () => {
   const [timeSlots, setTimeSlots] = useState<{ time: string; is_available: boolean }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [configuredDates, setConfiguredDates] = useState<Date[]>([]);
+  
+  const [configuredDates, setConfiguredDates] = useState<Set<string>>(new Set());
 
   const fetchConfiguredDates = useCallback(async (month: Date) => {
     try {
@@ -23,14 +25,16 @@ const AttendanceManagement: React.FC = () => {
         params: { year, month: monthNum },
       });
       
-      // response.dataが配列でない場合にエラーが発生している
-      const dates = response.data.map((dateStr: string) => new Date(dateStr));
-      setConfiguredDates(dates);
+      if (Array.isArray(response.data)) {
+        // response.data は ["2025-07-24", "2025-07-25"] のような文字列の配列を想定
+        setConfiguredDates(new Set(response.data));
+      } else {
+        console.error("設定済み日付の応答が予期せぬ形式です:", response.data);
+        setConfiguredDates(new Set()); // データが不正な場合は空にする
+      }
 
-    } catch (error: any) { // errorにany型を指定
+    } catch (error: any) {
       console.error("設定済み日付の取得に失敗しました:", error);
-      
-      // ★★★ 以下の2行を追加して、エラーレスポンスの中身を確認します ★★★
       if (error.response) {
         console.log("サーバーからのエラー応答:", error.response.data);
       }
@@ -86,7 +90,7 @@ const AttendanceManagement: React.FC = () => {
 
       setIsModalOpen(false);
       alert("保存しました。");
-      fetchConfiguredDates(currentMonth);
+      fetchConfiguredDates(currentMonth); // 保存後に設定済み日付を再取得
     } catch (error) {
       console.error("受付時間の設定に失敗しました。", error);
       alert("設定の保存に失敗しました。");
@@ -97,7 +101,6 @@ const AttendanceManagement: React.FC = () => {
 
   const today = new Date();
   const isPastDate = (date: Date) => date < today && !isSameDay(date, today);
-  const isConfigured = (date: Date) => configuredDates.some((d) => isSameDay(d, date));
 
   return (
     <div>
@@ -115,10 +118,19 @@ const AttendanceManagement: React.FC = () => {
             locale="ja"
             onMonthChange={(date) => setCurrentMonth(date)}
             dayClassName={(date) => {
-              if (isPastDate(date)) return "past-date";
-              if (isConfigured(date)) return "configured-date";
-              return "";
+              const dateStr = format(date, 'yyyy-MM-dd');
+              const classes = [];
+              if (isPastDate(date)) {
+                classes.push("past-date"); // 過去の日付用のクラス
+              }
+              // 設定済みの日付に背景色を適用します
+              if (configuredDates.has(dateStr)) {
+                classes.push("bg-green-200 text-green-800 font-bold");
+              }
+              return classes.join(" ");
             }}
+            calendarClassName="w-full"
+            popperPlacement="bottom"
           />
         </div>
       </div>

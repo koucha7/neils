@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from .models import Salon, Service, Reservation, DateSchedule, NotificationSetting, WeeklyDefaultSchedule, Customer
-from django.contrib.auth.models import User # ← Customerをインポート
+from .models import Salon, Service, Reservation, DateSchedule, NotificationSetting, WeeklyDefaultSchedule, Customer, UserProfile
+from django.contrib.auth.models import User
 
 class SalonSerializer(serializers.ModelSerializer):
     class Meta:
@@ -80,3 +80,33 @@ class NotificationSettingSerializer(serializers.ModelSerializer):
     class Meta:
         model = NotificationSetting
         fields = '__all__'
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """
+    UserProfileモデル用のシリアライザー
+    """
+    class Meta:
+        model = UserProfile
+        # APIで返す情報として、LINEユーザーIDのみを指定
+        fields = ['line_user_id']
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    """
+    管理者ユーザーの一覧表示・詳細表示用のシリアライザー
+    """
+    # 関連するUserProfileの情報をネストして表示
+    profile = UserProfileSerializer(read_only=True)
+    # LINEが連携済みかどうかを判定するカスタムフィールド
+    is_line_linked = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        # APIで返すフィールドを定義
+        fields = ['id', 'username', 'email', 'is_staff', 'profile', 'is_line_linked']
+    
+    def get_is_line_linked(self, obj):
+        """
+        is_line_linkedフィールドの値を動的に生成するメソッド
+        """
+        # ユーザーにprofileがあり、かつそのprofileにline_user_idが設定されていればTrueを返す
+        return hasattr(obj, 'profile') and obj.profile.line_user_id is not None

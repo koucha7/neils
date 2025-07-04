@@ -207,3 +207,19 @@ class AvailableTimeSlot(models.Model):
 
     def __str__(self):
         return f"{self.date.strftime('%Y-%m-%d')} {self.time.strftime('%H:%M')}"
+    
+class UserProfile(models.Model):
+    """
+    Djangoの標準Userモデルを拡張し、LINE連携情報を格納するためのモデル。
+    """
+    # DjangoのUserモデルと1対1で連携
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
+    
+    # 管理者のLINEユーザーIDを保存するフィールド
+    line_user_id = models.CharField(max_length=255, unique=True, null=True, blank=True, db_index=True)
+    
+    # 新規管理者がLINEアカウントを初めて連携する際に使用する、一度きりのトークン
+    line_registration_token = models.UUIDField(default=uuid.uuid4, null=True, blank=True)
+
+    def __str__(self):
+        return self.user.username
