@@ -644,7 +644,8 @@ class ConfiguredDatesView(APIView):
     """
     指定された年月に対応する、受付時間設定済みの日付リストを返す
     """
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get(self, request, *args, **kwargs):
         try:
@@ -751,7 +752,6 @@ class LineLoginCallbackView(APIView):
             line_user_id = profile.get('sub')
             display_name = profile.get('name')
             picture_url = profile.get('picture')
-            email = profile.get('email')
 
         except requests.exceptions.RequestException as e:
             return Response({'error': 'Failed to communicate with LINE API.', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -765,7 +765,6 @@ class LineLoginCallbackView(APIView):
                 defaults={
                     'line_display_name': display_name,
                     'line_picture_url': picture_url,
-                    'email': email,
                 }
             )
 
@@ -806,38 +805,7 @@ def me(request):
 
     # 万が一、顧客として認証できなかった場合
     return Response({"error": "顧客として認証されていません。"}, status=status.HTTP_401_UNAUTHORIZED)
-
-
-class AdminReservationListView(generics.ListAPIView):
-    """
-    管理者用の予約リストAPI。
-    settings.pyで設定したデフォルトの認証（JWTAuthentication）が適用される。
-    認証済みの管理者（スーパーユーザーなど）のみがアクセス可能。
-    """
-    queryset = Reservation.objects.all().order_by('-start_time')
-    serializer_class = ReservationSerializer
-
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        """
-        クエリパラメータに基づいて予約をフィルタリングする。
-        """
-        queryset = super().get_queryset()
-        start_date = self.request.query_params.get('start_date')
-        end_date = self.request.query_params.get('end_date')
-        status = self.request.query_params.getlist('status') # 複数のステータスに対応
-
-        if start_date:
-            queryset = queryset.filter(start_time__date__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(start_time__date__lte=end_date)
-        if status:
-            queryset = queryset.filter(status__in=status)
-            
-        return queryset
-    
+  
 @api_view(['POST'])
 @authentication_classes([CustomerJWTAuthentication])
 @permission_classes([IsAuthenticated])
@@ -1063,3 +1031,190 @@ class LineWebhookView(APIView):
         # LINEサーバーに正常に処理したことを伝える
         return HttpResponse(status=200)
 
+class AdminReservationViewSet(viewsets.ModelViewSet):
+    """
+    管理者用の予約管理APIビューセット。
+    """
+    serializer_class = ReservationSerializer
+    queryset = Reservation.objects.all().order_by('start_time')
+    lookup_field = 'reservation_number'
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        # (このメソッドに変更はありません)
+        queryset = super().get_queryset()
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        status_list = self.request.query_params.getlist('status')
+        if start_date:
+            queryset = queryset.filter(start_time__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(start_time__date__lte=end_date)
+        if status_list:
+            queryset = queryset.filter(status__in=status_list)
+        return queryset
+
+    @action(detail=True, methods=['post'], url_path='confirm')
+    def confirm(self, request, reservation_number=None):
+        """予約を「確定済み」に更新し、各種通知を送信するアクション"""
+        reservation = self.get_object()
+        if reservation.status != 'pending':
+            return Response(
+                {'error': 'この予約は保留中でないため、確定できません。'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        reservation.status = 'confirmed'
+        reservation.save()
+
+        # --- 通知処理 ---
+        try:
+            if reservation.customer and reservation.customer.email:
+                subject = f"【MomoNail】ご予約が確定いたしました"
+                message = (
+                    f"{reservation.customer.name}様\n\n"
+                    f"お申し込みいただいた内容でご予約が確定いたしました。\n"
+                    f"ご来店を心よりお待ちしております。\n\n"
+                    f"--- ご予約内容 ---\n"
+                    f"予約番号: {reservation.reservation_number}\n"
+                    f"日時: {reservation.start_time.strftime('%Y年%m月%d日 %H:%M')}\n"
+                    f"サービス: {reservation.service.name}\n"
+                )
+                from_email = os.environ.get("DEFAULT_FROM_EMAIL")
+                send_mail(subject, message, from_email, [reservation.customer.email])
+        except Exception as e:
+            print(f"予約確定メールの送信に失敗しました: {e}")
+
+        try:
+            # self を付けてクラス内のメソッドとして呼び出します
+            self.add_event_to_google_calendar(reservation)
+        except Exception as e:
+            print(f"Googleカレンダーへの登録に失敗しました: {e}")
+        
+        return Response({'status': 'reservation confirmed'})
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, reservation_number=None):
+        # (このメソッドに変更はありません)
+        reservation = self.get_object()
+        if reservation.status in ['completed', 'cancelled']:
+            return Response(
+                {'error': 'この予約は完了またはキャンセル済みのため、変更できません。'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        reservation.status = 'cancelled'
+        reservation.save()
+        return Response({'status': 'reservation cancelled'})
+
+    # ▼▼▼【ここが最重要】▼▼▼
+    # このメソッドが、confirmやcancelと同じインデント（階層）で
+    # クラス内に正しく定義されていることを確認してください。
+    def add_event_to_google_calendar(self, reservation):
+        """Googleカレンダーに予約イベントを追加するヘルパーメソッド"""
+        SCOPES = ['https://www.googleapis.com/auth/calendar']
+        SERVICE_ACCOUNT_FILE = 'google_credentials.json'
+        CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
+
+        if not CALENDAR_ID:
+            print("環境変数 GOOGLE_CALENDAR_ID が設定されていません。")
+            return
+
+        try:
+            creds = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        except Exception as e:
+            print(f"Google認証情報の読み込みに失敗しました: {e}")
+            return
+            
+        service = build('calendar', 'v3', credentials=creds)
+        event = {
+            'summary': f"【予約】{reservation.customer.name}様",
+            'description': (
+                f"サービス: {reservation.service.name}\n"
+                f"予約番号: {reservation.reservation_number}\n"
+                f"連絡先: {reservation.customer.email or 'メールアドレス未登録'}"
+            ),
+            'start': {'dateTime': reservation.start_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
+            'end': {'dateTime': reservation.end_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
+        }
+        service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+        print(f"Googleカレンダーにイベントを登録しました: {reservation.reservation_number}")
+
+class AdminCustomerViewSet(viewsets.ModelViewSet):
+    """
+    管理者用の顧客管理API。
+    一覧(list)と詳細(retrieve)の読み取り専用。
+    """
+    queryset = Customer.objects.all().order_by('-created_at')
+    serializer_class = CustomerSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        """名前、メール、電話番号で顧客を検索する機能"""
+        queryset = super().get_queryset()
+        name = self.request.query_params.get('name')
+        email = self.request.query_params.get('email')
+        phone = self.request.query_params.get('phone_number')
+
+        if name:
+            queryset = queryset.filter(name__icontains=name)
+        if email:
+            queryset = queryset.filter(email__icontains=email)
+        if phone:
+            queryset = queryset.filter(phone_number__icontains=phone)
+            
+        return queryset
+
+    @action(detail=True, methods=['get'])
+    def reservations(self, request, pk=None):
+        """特定の顧客の予約履歴を返すアクション"""
+        customer = self.get_object()
+        reservations = Reservation.objects.filter(customer=customer).order_by('-start_time')
+        # ★注意: ReservationSerializerがネストされた情報を返す設定になっている必要があります
+        serializer = ReservationSerializer(reservations, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def send_line(self, request, pk=None):
+        """特定の顧客にLINEメッセージを送信する"""
+        customer = self.get_object()
+        message = request.data.get('message')
+
+        if not message:
+            return Response({'error': 'メッセージ本文は必須です。'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not customer.line_user_id:
+            return Response({'error': 'この顧客はLINE連携していません。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            success, result_message = send_line_push_message(customer.line_user_id, message)
+            if success:
+                return Response({'status': 'LINEメッセージを送信しました。'})
+            else:
+                return Response({'error': f'LINE送信に失敗しました: {result_message}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    @action(detail=True, methods=['post'], url_path='send-line')
+    def send_line(self, request, pk=None):
+        """特定の顧客にLINEメッセージを送信する"""
+        customer = self.get_object()
+        message = request.data.get('message')
+
+        if not message:
+            return Response({'error': 'メッセージ本文は必須です。'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not customer.line_user_id:
+            return Response({'error': 'この顧客はLINE連携していません。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 実際にLINEへ送信するユーティリティ関数を呼び出す
+            success, result_message = send_line_push_message(customer.line_user_id, message)
+            if success:
+                return Response({'status': 'LINEメッセージを送信しました。'})
+            else:
+                return Response({'error': f'LINE送信に失敗しました: {result_message}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

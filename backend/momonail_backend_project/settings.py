@@ -1,12 +1,12 @@
 # MomoNail/backend/momonail_backend_project/settings.py
 import os
 import dj_database_url # ★追加
-#from dotenv import load_dotenv # ⇐ この行を追加
-
+from dotenv import load_dotenv
 from pathlib import Path
 
-#BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 
+load_dotenv()
 # ↓↓↓↓ この行を修正します ↓↓↓↓
 # 修正前: load_dotenv() 
 # 修正後:
@@ -126,15 +126,15 @@ SIMPLE_JWT = {
 }
 
 # 環境変数からCORS許可オリジンを取得
-CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+""" CORS_ALLOWED_ORIGINS_STR = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS_STR.split(',') if CORS_ALLOWED_ORIGINS_STR.strip() else []
-
-""" CORS_ALLOWED_ORIGINS = [
+ """
+CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     # 将来的にデプロイするフロントエンドのURLも追加できます
     # "https://your-frontend-domain.com", 
-] """
+]
 
 CORS_ALLOW_METHODS = [
     'DELETE',

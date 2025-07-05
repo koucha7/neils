@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ユーザー情報を取得する関数
   const fetchUser = async () => {
     try {
-      const response = await api.get('/api/users/me/');
+      const response = await api.get('/api/me/');
       setUser(response.data);
     } catch (error) {
       console.error('ユーザー情報の取得に失敗しました:', error);
