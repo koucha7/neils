@@ -29,10 +29,6 @@ urlpatterns = [
     # 3. 認証トークン取得用のAPI
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-
-    # 管理者専用APIのエンドポイントを 'reservations.urls' に振り分け
-    path('api/admin/', include('reservations.admin_urls')), 
-    
     # 顧客向けAPIのエンドポイント
     path('api/', include('reservations.urls')),
 ]

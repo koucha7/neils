@@ -25,7 +25,7 @@ class DateScheduleSerializer(serializers.ModelSerializer):
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ['id', 'line_user_id', 'name', 'email', 'phone_number', 'created_at', 'updated_at']
+        fields = ['id', 'line_user_id', 'name', 'email', 'phone_number', 'notes', 'created_at', 'updated_at']
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -34,9 +34,32 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'first_name', 'last_name']
 
 class ReservationSerializer(serializers.ModelSerializer):
-    # ▼▼▼ 以下の1行を追加 ▼▼▼
     # 予約情報に顧客の詳細情報を含めるようにする
-    customer = CustomerSerializer(read_only=True)
+    customer_name = serializers.SerializerMethodField()
+    service_name = serializers.CharField(source='service.name', read_only=True)
+    customer_id = serializers.IntegerField(source='customer.id', read_only=True)
+
+    class Meta:
+        model = Reservation
+        # APIで返すフィールドを明示的に指定します。
+        fields = [
+            'id', 
+            'reservation_number',
+            'start_time', 
+            'end_time', 
+            'status', 
+            'customer_name',
+            'service_name'
+            'customer_id',
+        ]
+    
+    def get_customer_name(self, obj):
+        """
+        顧客情報が存在すればその名前を、存在しなければ「該当顧客なし」を返す
+        """
+        if obj.customer:
+            return obj.customer.name
+        return "削除された顧客"
     
     # serviceフィールドも同様に詳細を表示するように変更（任意ですが推奨）
     service = ServiceSerializer(read_only=True)
@@ -51,7 +74,10 @@ class ReservationCreateSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(write_only=True, label="氏名")
     customer_email = serializers.EmailField(write_only=True, label="メールアドレス")
     customer_phone = serializers.CharField(write_only=True, required=False, allow_blank=True, label="電話番号")
-
+    
+    print(customer_name)
+    print(customer_email)
+    print(customer_name)
     class Meta:
         model = Reservation
         fields = [

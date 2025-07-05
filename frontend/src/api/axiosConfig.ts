@@ -39,16 +39,22 @@ api.interceptors.request.use(
     if (csrfToken) {
       config.headers["X-CSRFToken"] = csrfToken;
     }
+    
+    const isAdminApi = config.url && config.url.startsWith('/api/admin/');
 
-    // URLが /api/admin/ から始まる場合のみadminAccessTokenを付与
-    // あるいは、特定のAPIパス（例: /api/token/refresh/, /api/admin/）にのみadminAccessTokenを付与する
-    if (config.url && config.url.startsWith('/api/admin/')) {
+    if (isAdminApi) {
+      // 管理者用APIの場合
       const adminToken = localStorage.getItem("adminAccessToken");
       if (adminToken) {
         config.headers["Authorization"] = `Bearer ${adminToken}`;
       }
+    } else {
+      // 顧客用API（管理者用以外）の場合
+      const customerToken = localStorage.getItem("accessToken"); // 顧客用トークンは'accessToken'キー
+      if (customerToken) {
+        config.headers["Authorization"] = `Bearer ${customerToken}`;
+      }
     }
-    // 他のAPI（顧客向けなど）ではadminAccessTokenは付与しない
 
     return config;
   },
