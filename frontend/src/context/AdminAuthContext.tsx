@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 
@@ -24,6 +24,8 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('adminAccessToken'));
   const navigate = useNavigate();
 
   // トークンを保存し、APIヘッダーに設定する共通関数
@@ -56,10 +58,27 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ログアウト処理
-  const logout = () => {
-    clearAuthTokens();
-    // ログアウト後の画面遷移はAdminPanel側で行われる
-  };
+  const logout = useCallback(() => {
+    console.log("ログアウト処理を開始します..."); // デバッグ用
+
+    // 1. ローカルストレージからトークンを削除
+    localStorage.removeItem('adminAccessToken');
+    localStorage.removeItem('adminRefreshToken');
+
+    // 2. APIクライアントのデフォルトヘッダーをクリア（念のため）
+    // api.defaults.headers.common['Authorization'] = null; // axiosConfig.tsで設定している場合は不要な場合もあります
+
+    // 3. アプリケーションの状態を更新
+    setIsLoggedIn(false);
+    setUser(null);
+    setToken(null);
+    
+    // 4. ログインページへ強制的にリダイレクト
+    // navigate('/admin/login') のように、より明確なパスを指定すると確実です
+    navigate('/admin'); 
+
+    console.log("ログアウト処理が完了しました。"); // デバッグ用
+  }, [navigate]);
 
   // アプリケーション起動時に一度だけ実行
   useEffect(() => {
