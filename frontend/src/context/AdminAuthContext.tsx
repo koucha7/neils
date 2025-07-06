@@ -1,3 +1,5 @@
+// frontend/src/context/AdminAuthContext.tsx
+
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
@@ -24,22 +26,21 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('adminAccessToken'));
   const navigate = useNavigate();
 
-  // トークンを保存し、APIヘッダーに設定する共通関数
+  // ▼▼▼【1. isLoggedInをStateで管理】▼▼▼
+  // 初期値はlocalStorageにトークンがあるかどうかで設定します
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => !!localStorage.getItem('adminAccessToken'));
+
   const setAuthTokens = (access: string, refresh: string) => {
     localStorage.setItem('adminAccessToken', access);
     localStorage.setItem('adminRefreshToken', refresh);
-    api.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+    // apiオブジェクトのデフォルトヘッダー設定はインターセプターに任せます
   };
 
-  // トークンを削除する共通関数
   const clearAuthTokens = () => {
     localStorage.removeItem('adminAccessToken');
     localStorage.removeItem('adminRefreshToken');
-    delete api.defaults.headers.common['Authorization'];
     setUser(null);
   };
 
@@ -47,62 +48,51 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (username: string, password: string) => {
     const response = await api.post('/api/token/', { username, password });
     setAuthTokens(response.data.access, response.data.refresh);
-    // ログイン成功後、AdminPanelが再レンダリングされて表示が切り替わる
+    // ▼▼▼【2. ログイン状態を更新】▼▼▼
+    setIsLoggedIn(true); // ★ Stateを更新して再レンダリングをトリガーします
   };
 
   // LINEでのログイン処理
   const lineLogin = async (code: string) => {
     const response = await api.post('/api/admin/login-line/', { code });
     setAuthTokens(response.data.access, response.data.refresh);
-    navigate('/admin'); // ログイン成功後、管理画面トップに遷移
+    // ▼▼▼【3. ログイン状態を更新】▼▼▼
+    setIsLoggedIn(true); // ★ Stateを更新します
+    navigate('/admin/reservations'); // ログイン成功後、管理画面の予約一覧に遷移
   };
 
   // ログアウト処理
   const logout = useCallback(() => {
-    console.log("ログアウト処理を開始します..."); // デバッグ用
-
-    // 1. ローカルストレージからトークンを削除
-    localStorage.removeItem('adminAccessToken');
-    localStorage.removeItem('adminRefreshToken');
-
-    // 2. APIクライアントのデフォルトヘッダーをクリア（念のため）
-    // api.defaults.headers.common['Authorization'] = null; // axiosConfig.tsで設定している場合は不要な場合もあります
-
-    // 3. アプリケーションの状態を更新
-    setIsLoggedIn(false);
-    setUser(null);
-    setToken(null);
-    
-    // 4. ログインページへ強制的にリダイレクト
-    // navigate('/admin/login') のように、より明確なパスを指定すると確実です
-    navigate('/admin'); 
-
-    console.log("ログアウト処理が完了しました。"); // デバッグ用
+    clearAuthTokens();
+    // ▼▼▼【4. ログアウト状態を更新】▼▼▼
+    setIsLoggedIn(false); // ★ Stateを更新します
+    navigate('/admin');   // ログアウト後、管理者ログインページへ
   }, [navigate]);
 
-  // アプリケーション起動時に一度だけ実行
+  // アプリケーション起動時の認証状態チェック
   useEffect(() => {
-    const token = localStorage.getItem('adminAccessToken');
-    if (token) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      // 必要であれば、トークンからユーザー情報を復元する処理をここに追加
+    // このuseEffectは初期のisLoggedInをセットする役割に絞り、
+    // 実際のユーザー情報取得は各ページや共通レイアウトで行うのが望ましいです。
+    const tokenExists = !!localStorage.getItem('adminAccessToken');
+    if (isLoggedIn !== tokenExists) {
+      setIsLoggedIn(tokenExists);
     }
     setIsLoading(false);
-  }, []);
+  }, [isLoggedIn]);
 
   const value = {
     user,
     login,
     lineLogin,
     logout,
-    isLoggedIn: !!localStorage.getItem('adminAccessToken'),
+    isLoggedIn, // ★ useStateで管理されているisLoggedInを渡します
     isLoading,
   };
 
   return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>;
 };
 
-// コンポーネントからContextを簡単に利用するためのカスタムフック
+// カスタムフック (変更なし)
 export const useAdminAuth = () => {
   const context = useContext(AdminAuthContext);
   if (context === undefined) {

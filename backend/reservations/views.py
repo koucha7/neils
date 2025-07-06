@@ -1218,3 +1218,14 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
                 return Response({'error': f'LINE送信に失敗しました: {result_message}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def admin_me(request):
+    """
+    現在認証されている管理者ユーザーの情報を返す。
+    トークンが無効な場合は401エラーが自動的に返される。
+    """
+    serializer = AdminUserSerializer(request.user)
+    return Response(serializer.data)
