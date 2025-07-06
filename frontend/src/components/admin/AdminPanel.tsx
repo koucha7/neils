@@ -1,6 +1,6 @@
 // frontend/src/components/admin/AdminPanel.tsx
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom'; // ★ 1. 必要なフックを追加
 import {
   BarChart3, Calendar, LogOut, Menu as MenuIcon, Scissors, Users, X, ClipboardList
@@ -17,6 +17,7 @@ import CustomerManagement from './CustomerManagement';
 import AdminCustomerDetail from './CustomerDetail';
 import CustomerMemo from './CustomerMemo';
 import SendLineMessage from './SendLineMessage';
+import api from '../../api/axiosConfig';
 
 const AdminPanel: React.FC = () => {
   const { isLoggedIn, logout } = useAdminAuth();
@@ -26,6 +27,28 @@ const AdminPanel: React.FC = () => {
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(prev => !prev);
   }, []);
+
+  useEffect(() => {
+    const verifySession = async () => {
+      try {
+        // バックエンドに作成した認証チェックAPIを呼び出す
+        await api.get('/api/admin/me/');
+        console.log("セッションは有効です。");
+      } catch (error: any) {
+        // 401エラーが返ってきたらセッション切れと判断
+        if (error.response?.status === 401) {
+          console.log("セッションが切れました。自動ログアウトします。");
+          alert("セッションが切れました。再度ログインしてください。");
+          logout();
+        }
+      }
+    };
+
+    // ログイン中の場合のみ、ページ遷移のたびにチェックを実行
+    if (isLoggedIn) {
+      verifySession();
+    }
+  }, [isLoggedIn, logout, location.pathname]); // ★ location.pathnameを監視
 
   if (!isLoggedIn) {
     return <LoginScreen />;

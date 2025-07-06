@@ -100,6 +100,15 @@ const ReservationList: React.FC = () => {
     navigate(`/admin/reservations/${reservationNumber}`);
   };
 
+  const getStatusClass = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* ▼▼▼【ここからが修正箇所】▼▼▼ */}
@@ -177,57 +186,68 @@ const ReservationList: React.FC = () => {
         </div>
       </div>
 
-      {/* 予約一覧テーブル */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">予約日時</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">顧客名</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">メニュー</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">ステータス</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-10">
-                    <Loader2 className="mx-auto animate-spin text-gray-400" size={32} />
-                    <p className="text-gray-500 mt-2">読み込み中...</p>
-                  </td>
-                </tr>
-              ) : error ? (
-                 <tr><td colSpan={5} className="text-center py-10 text-red-500">{error}</td></tr>
-              ) : reservations.length > 0 ? (
-                reservations.map((reservation) => (
-              <tr 
-                key={reservation.id} 
-                onClick={() => handleRowClick(reservation.reservation_number)}
-                className="hover:bg-gray-100 cursor-pointer"
-              >
+      {/* スマホ用: カード表示 */}
+      <div className="md:hidden space-y-3 mt-4">
+        {reservations.map((reservation) => (
+          <div
+            key={reservation.id}
+            onClick={() => handleRowClick(reservation.reservation_number)}
+            className="bg-white p-4 rounded-lg shadow border-l-4 border-indigo-500 cursor-pointer flex justify-between items-center"
+          >
+            <div>
+              <p className="font-semibold text-gray-800">{reservation.customer_name}</p>
+              <p className="text-sm text-gray-600">{reservation.service_name}</p>
+              <span className={`mt-2 inline-block px-2 py-1 text-xs font-semibold rounded-full ${getStatusClass(reservation.status)}`}>
+                {reservation.status}
+              </span>
+            </div>
+            {/* ▼▼▼【スマホ用の日付表示を修正】▼▼▼ */}
+            <div className="text-right flex-shrink-0">
+                <p className="text-sm font-medium text-gray-500">
+                    {format(new Date(reservation.start_time), 'yyyy/MM/dd')}
+                </p>
+                <p className="text-xl font-bold text-gray-800">
+                    {format(new Date(reservation.start_time), 'HH:mm')}
+                </p>
+            </div>
+            {/* ▲▲▲【修正ここまで】▲▲▲ */}
+          </div>
+        ))}
+      </div>
+
+      {/* PC用: テーブル表示 */}
+      <div className="hidden md:block overflow-x-auto mt-4">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">予約日時</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">顧客名</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">メニュー</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {reservations.map((reservation) => (
+              <tr key={reservation.id} onClick={() => handleRowClick(reservation.reservation_number)} className="hover:bg-gray-100 cursor-pointer">
+                {/* ▼▼▼【PC用の日付表示を修正】▼▼▼ */}
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {format(new Date(reservation.start_time), 'yyyy/MM/dd HH:mm')}
+                  <div>
+                    <div className="text-sm text-gray-500">{format(new Date(reservation.start_time), 'yyyy/MM/dd')}</div>
+                    <div className="text-lg font-bold text-gray-900">{format(new Date(reservation.start_time), 'HH:mm')}</div>
+                  </div>
                 </td>
+                {/* ▲▲▲【修正ここまで】▲▲▲ */}
                 <td className="px-6 py-4 whitespace-nowrap">{reservation.customer_name}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{reservation.service_name}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    reservation.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                    reservation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(reservation.status)}`}>
                     {reservation.status}
                   </span>
                 </td>
               </tr>
-                ))
-              ) : (
-                <tr><td colSpan={5} className="text-center py-10 text-gray-500">該当する予約はありません。</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

@@ -36,10 +36,12 @@ urlpatterns = [
     path('admin/configured-dates/', views.ConfiguredDatesView.as_view(), name='admin-configured-dates'),
     path('bookable-dates/', views.BookableDatesView.as_view(), name='bookable-dates'),
     path('me/', views.me, name='me'),
+    path('admin/me/', views.admin_me, name='admin-me'),
     path('line/callback/', views.LineLoginCallbackView.as_view(), name='line-callback'),
     path('line/webhook/', views.LineWebhookView.as_view(), name='line-webhook'),
     path('admin/line/link/', views.AdminLineLinkView.as_view(), name='admin-line-link'),
     path('admin/link-line/', views.AdminLineLinkView.as_view(), name='admin-link-line'),
     path('admin/login-line/', views.AdminLineLoginView.as_view(), name='admin-login-line'),
+    path('confirm-reservation-and-notify/', views.confirm_reservation_and_notify, name='confirm-reservation-and-notify'),
     
 ]
