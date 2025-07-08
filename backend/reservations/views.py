@@ -38,25 +38,21 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 from .models import (
-    DateSchedule,
     NotificationSetting,
     Reservation,
     Salon,
     Service,
-    WeeklyDefaultSchedule,
     Customer,
     AvailableTimeSlot,
     UserProfile,
 )
 
 from .serializers import (
-    DateScheduleSerializer,
     NotificationSettingSerializer,
     ReservationCreateSerializer,
     ReservationSerializer,
     SalonSerializer,
     ServiceSerializer,
-    WeeklyDefaultScheduleSerializer,
     CustomerSerializer,
     UserSerializer,
     AdminUserSerializer,
@@ -75,52 +71,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
     authentication_classes = []
     permission_classes = [AllowAny]
 
-class WeeklyDefaultScheduleViewSet(viewsets.ModelViewSet):
-    queryset = WeeklyDefaultSchedule.objects.all()
-    serializer_class = WeeklyDefaultScheduleSerializer
-    permission_classes = [IsAuthenticated]
-
-class DateScheduleViewSet(viewsets.ModelViewSet):
-    queryset = DateSchedule.objects.all()
-    serializer_class = DateScheduleSerializer
-    permission_classes = [IsAuthenticated]
-
-    def _has_existing_reservations(self, date):
-        return Reservation.objects.filter(
-            start_time__date=date, status__in=["pending", "confirmed"]
-        ).exists()
-
-    def create(self, request, *args, **kwargs):
-        date_str = request.data.get("date")
-        if date_str:
-            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            if self._has_existing_reservations(target_date):
-                return Response(
-                    {
-                        "error": "この日付には既に予約が存在するため、休業日や営業時間の変更はできません。"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        return super().create(request, *args, **kwargs)
-
-    def update(self, request, *args, **kwargs):
-        date_str = request.data.get("date")
-        if date_str:
-            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            if self._has_existing_reservations(target_date):
-                return Response(
-                    {
-                        "error": "この日付には既に予約が存在するため、休業日や営業時間の変更はできません。"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        return super().update(request, *args, **kwargs)
-
 class ReservationViewSet(viewsets.ModelViewSet):
-    # ★ 1. このViewSetで使う認証方法を顧客専用のものに指定します
+    """顧客向けの予約APIビューセット"""
     authentication_classes = [CustomerJWTAuthentication]
-    permission_classes = [IsAuthenticated]  # 認証済み顧客のみアクセスを許可
-
+    permission_classes = [IsAuthenticated]
     queryset = Reservation.objects.all()
     serializer_class = ReservationSerializer
     lookup_field = "reservation_number"
@@ -131,70 +85,71 @@ class ReservationViewSet(viewsets.ModelViewSet):
         return ReservationSerializer
 
     def get_queryset(self):
-        # ログインしている顧客自身の予約のみを返すように修正
+        """ログインしている顧客自身の予約のみを返すように修正"""
         customer = self.request.user
         if isinstance(customer, Customer):
             return super().get_queryset().filter(customer=customer)
-        # 顧客でなければ、何も返さない
         return Reservation.objects.none()
 
     def create(self, request, *args, **kwargs):
-        """
-        新しい予約を作成し、作成された予約の詳細情報を返す
-        """
+        """新しい予約を作成し、各種通知を行う"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # perform_createにログイン中の顧客(request.user)を直接渡す
         self.perform_create(serializer)
         
         # --- ここから通知処理 ---
         reservation = serializer.instance
         try:
+            # (管理者へのLINE通知)
             message = (
                 f"新しい予約が入りました！\n\n"
                 f"予約番号: {reservation.reservation_number}\n"
                 f"お名前: {reservation.customer.name}様\n"
                 f"日時: {reservation.start_time.strftime('%Y-%m-%d %H:%M')}\n"
-                f"サービス: {reservation.service.name}\n\n"
-                f"▼予約詳細・確定はこちら\n"
-                f"https://momonail-frontend.onrender.com/admin/reservations/{reservation.reservation_number}"
+                f"サービス: {reservation.service.name}"
             )
             send_admin_line_notification(message)
         except Exception as e:
-            print(f"LINE notification failed: {e}")
+            print(f"管理者へのLINE通知に失敗しました: {e}")
 
         try:
-            subject = f"【MomoNail】ご予約ありがとうございます（お申込内容の確認）"
-            message = (
-                f"{reservation.customer.name}様\n\n"
-                f"この度は、MomoNailにご予約いただき、誠にありがとうございます。\n"
-                f"以下の内容でご予約を承りました。ネイリストが内容を確認後、改めて「予約確定メール」をお送りしますので、今しばらくお待ちください。\n\n"
-                f"--- ご予約内容 ---\n"
-                f"予約番号: {reservation.reservation_number}\n"
-                f"日時: {reservation.start_time.strftime('%Y年%m月%d日 %H:%M')}\n"
-                f"サービス: {reservation.service.name}\n"
-                f"------------------\n\n"
-                f"ご予約内容の確認・キャンセルは、以下のページからも行えます。\n"
-                f"https://momonail-frontend.onrender.com/check\n\n"
-                f"MomoNail"
-            )
-            from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@momonail.com")
-            recipient_list = [reservation.customer.email]
-            send_mail(subject, message, from_email, recipient_list)
+            # (顧客への予約受付メール)
+            if reservation.customer.email:
+                subject = "【MomoNail】ご予約ありがとうございます（お申込内容の確認）"
+                message = (
+                    f"{reservation.customer.name}様\n\n"
+                    f"この度は、MomoNailにご予約いただき、誠にありがとうございます。\n"
+                    f"以下の内容でご予約を承りました。ネイリストが内容を確認後、改めて「予約確定メール」をお送りしますので、今しばらくお待ちください。\n\n"
+                    f"--- ご予約内容 ---\n"
+                    f"予約番号: {reservation.reservation_number}\n"
+                    f"日時: {reservation.start_time.strftime('%Y年%m月%d日 %H:%M')}\n"
+                    f"サービス: {reservation.service.name}\n"
+                    f"------------------"
+                )
+                from_email = os.environ.get("DEFAULT_FROM_EMAIL")
+                send_mail(subject, message, from_email, [reservation.customer.email])
         except Exception as e:
-            print(f"Failed to send reservation received email: {e}")
+            print(f"予約受付メールの送信に失敗しました: {e}")
 
-        # レスポンス用に詳細シリアライザで整形し直す
-        response_serializer = ReservationSerializer(serializer.instance, context=self.get_serializer_context())
+        response_serializer = ReservationSerializer(serializer.instance)
         headers = self.get_success_headers(serializer.data)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
         """
-        予約作成時に、ログイン中の顧客情報(request.user)を自動で紐付ける。
+        ★★★【ここが今回の修正のメインです】★★★
+        予約作成時に終了時刻を計算し、ログイン顧客と紐付けて保存する。
         """
-        # このビューは顧客認証専用なので、request.userは必ずCustomerオブジェクト
-        serializer.save(customer=self.request.user)
+        # 1. 予約されたサービスと開始時刻を取得
+        service = serializer.validated_data.get('service')
+        start_time = serializer.validated_data.get('start_time')
+
+        # 2. サービスの所要時間から終了時刻を計算
+        duration = timedelta(minutes=service.duration_minutes)
+        end_time = start_time + duration
+        
+        # 3. ログイン中の顧客情報と、計算した終了時刻を渡して保存
+        serializer.save(customer=self.request.user, end_time=end_time)
     
     @action(detail=True, methods=['post'])
     def confirm(self, request, reservation_number=None):
@@ -354,82 +309,6 @@ class AvailabilityCheckAPIView(APIView):
             # ▲▲▲ ここまで修正 ▲▲▲
 
         return Response(available_slots, status=status.HTTP_200_OK)
- 
-class MonthlyAvailabilityCheckAPIView(APIView):
-    authentication_classes = []
-    permission_classes = [AllowAny]
-    def get(self, request, *args, **kwargs):
-        year_str = request.query_params.get('year')
-        month_str = request.query_params.get('month')
-        service_id = request.query_params.get('service_id')
-
-        if not all([year_str, month_str, service_id]):
-            return Response({"error": "年、月、サービスIDが必要です。"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            year = int(year_str)
-            month = int(month_str)
-            service = Service.objects.get(id=service_id)
-        except (ValueError, Service.DoesNotExist):
-            return Response({"error": "無効なパラメータです。"}, status=status.HTTP_400_BAD_REQUEST)
-
-        from calendar import monthrange
-        num_days = monthrange(year, month)[1]
-
-        daily_availability = {}
-
-        weekly_schedules = {s.day_of_week: s for s in WeeklyDefaultSchedule.objects.all()}
-        date_schedules = {s.date.isoformat(): s for s in DateSchedule.objects.filter(date__year=year, date__month=month)}
-        reservations_for_month = Reservation.objects.filter(
-            start_time__year=year, start_time__month=month
-        ).exclude(status="cancelled")
-
-        for day in range(1, num_days + 1):
-            target_date = datetime(year, month, day).date()
-            target_date_iso = target_date.isoformat()
-            
-            opening_time, closing_time = None, None
-            is_closed_for_day = False
-
-            if target_date_iso in date_schedules:
-                day_schedule = date_schedules[target_date_iso]
-                if day_schedule.is_closed:
-                    is_closed_for_day = True
-                else:
-                    opening_time = day_schedule.opening_time
-                    closing_time = day_schedule.closing_time
-            else:
-                weekday = target_date.weekday()
-                if weekday in weekly_schedules:
-                    day_schedule = weekly_schedules[weekday]
-                    if day_schedule.is_closed:
-                        is_closed_for_day = True
-                    else:
-                        opening_time = day_schedule.opening_time
-                        closing_time = day_schedule.closing_time
-                else:
-                    is_closed_for_day = True
-            
-            if is_closed_for_day or not isinstance(opening_time, time) or not isinstance(closing_time, time):
-                daily_availability[target_date_iso] = False
-                continue
-
-            open_dt = timezone.make_aware(datetime.combine(target_date, opening_time))
-            close_dt = timezone.make_aware(datetime.combine(target_date, closing_time))
-            total_business_minutes = (close_dt - open_dt).total_seconds() / 60
-
-            reservations_for_day = [r for r in reservations_for_month if r.start_time.date() == target_date]
-            total_reserved_minutes = sum(
-                (r.end_time - r.start_time).total_seconds() / 60 for r in reservations_for_day
-            )
-
-            remaining_minutes = total_business_minutes - total_reserved_minutes
-            if remaining_minutes >= service.duration_minutes:
-                daily_availability[target_date_iso] = True
-            else:
-                daily_availability[target_date_iso] = False
-
-        return Response(daily_availability, status=status.HTTP_200_OK)
     
 class HealthCheckAPIView(APIView):
     """
@@ -484,66 +363,13 @@ class StatisticsView(APIView):
             'service_ranking': service_ranking,
             'reservation_stats': reservation_stats,
         })
-
-class MonthlyScheduleAdminView(APIView):
-    """
-    管理画面向けに、指定された月の各日付のスケジュール状態を返す。(最終修正版)
-    """
-    permission_classes = [IsAuthenticated]
-    def get(self, request, *args, **kwargs):
-        try:
-            year = int(request.query_params.get('year'))
-            month = int(request.query_params.get('month'))
-        except (TypeError, ValueError):
-            return Response({'error': 'Year and month parameters are required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        schedules_in_month = DateSchedule.objects.filter(date__year=year, date__month=month)
-        schedules_map = {schedule.date: schedule for schedule in schedules_in_month}
-        weekly_defaults = {wd.day_of_week: wd for wd in WeeklyDefaultSchedule.objects.all()}
-
-        response_data = {}
-        num_days = calendar.monthrange(year, month)[1]
-
-        for day_num in range(1, num_days + 1):
-            # ★★★【バグ修正】★★★
-            # datetime.date(...) ではなく、インポートした date(...) を直接使う
-            # また、変数名が 'date' だとインポートしたものと衝突するため 'current_date' に変更
-            current_date = date(year, month, day_num)
-            
-            date_str = current_date.strftime('%Y-%m-%d')
-            weekday = current_date.weekday()
-
-            schedule_info = {}
-            if current_date in schedules_map:
-                schedule = schedules_map[current_date]
-                schedule_info['id'] = schedule.id
-                if schedule.is_closed:
-                    schedule_info['status'] = 'HOLIDAY'
-                else:
-                    schedule_info['status'] = 'SPECIAL_WORKING'
-                    schedule_info['start_time'] = schedule.opening_time.strftime('%H:%M') if schedule.opening_time else None
-                    schedule_info['end_time'] = schedule.closing_time.strftime('%H:%M') if schedule.closing_time else None
-            elif weekday in weekly_defaults:
-                default = weekly_defaults[weekday]
-                if not default.is_closed:
-                    schedule_info['status'] = 'DEFAULT_WORKING'
-                    schedule_info['start_time'] = default.opening_time.strftime('%H:%M') if default.opening_time else None
-                    schedule_info['end_time'] = default.closing_time.strftime('%H:%M') if default.closing_time else None
-                else:
-                    schedule_info['status'] = 'DEFAULT_HOLIDAY'
-            else:
-                schedule_info['status'] = 'UNDEFINED'
-            
-            response_data[date_str] = schedule_info
-
-        return Response(response_data, status=status.HTTP_200_OK)
     
 class TimeSlotAPIView(APIView):
     """
     指定された日付の営業時間から、30分単位の時間枠リストを返すAPI。(修正版)
     """
     authentication_classes = []
-    permission_classes = [AllowAny] # ★追加
+    permission_classes = [AllowAny]
     def get(self, request, *args, **kwargs):
         date_str = request.query_params.get('date')
         if not date_str:
@@ -553,26 +379,8 @@ class TimeSlotAPIView(APIView):
             target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             return Response({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        specific_schedule = DateSchedule.objects.filter(date=target_date).first()
         
         schedule_data = None
-        if specific_schedule:
-            if specific_schedule.is_closed: # is_holiday ではなく is_closed を参照
-                return Response([], status=status.HTTP_200_OK) 
-            schedule_data = {
-                'opening_time': specific_schedule.opening_time,
-                'closing_time': specific_schedule.closing_time
-            }
-        else:
-            weekday = target_date.weekday()
-            default_schedule = WeeklyDefaultSchedule.objects.filter(day_of_week=weekday).first()
-            # ★★★【バグ修正】 is_active=True ではなく not is_closed
-            if default_schedule and not default_schedule.is_closed:
-                schedule_data = {
-                    'opening_time': default_schedule.opening_time,
-                    'closing_time': default_schedule.closing_time
-                }
 
         if not schedule_data or not schedule_data['opening_time'] or not schedule_data['closing_time']:
             return Response([], status=status.HTTP_200_OK)
@@ -875,6 +683,62 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         registration_url = f"{base_url}/register-line/{profile.line_registration_token}"
         
         return Response({'registration_link': registration_url})
+    
+class AdminUserViewSet(viewsets.ModelViewSet):
+    """
+    管理者ユーザーの参照、作成、更新、削除を行うためのAPI。
+    LINE連携URLの生成機能も含む。
+    """
+    queryset = User.objects.all().order_by('date_joined')
+    serializer_class = AdminUserSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser] # 管理者のみアクセス可能
+
+    @action(detail=True, methods=['post'], url_path='generate-line-link')
+    def generate_line_link(self, request, pk=None):
+        """
+        指定された管理者ユーザーのLINE連携用リンクを生成する
+        """
+        user = self.get_object()
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        
+        # 新しい登録トークンを生成して保存
+        token = uuid.uuid4()
+        profile.line_registration_token = token
+        profile.save()
+        
+        # ▼▼▼【ここから修正】▼▼▼
+        # 環境変数からフロントエンドのURLを取得
+        # VITE_APP_FRONTEND_URL のような、より明確な名前の環境変数を参照するのが望ましい
+        base_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173') 
+        
+        # フロントエンドに作成した連携用ページのパスを正しく指定
+        registration_url = f"{base_url}/register-line/{token}"
+        
+        print(f"生成された連携URL: {registration_url}") # デバッグ用にURLをコンソールに出力
+        # ▲▲▲【修正ここまで】▲▲▲
+        
+        return Response({'registration_link': registration_url})
+    
+    def create(self, request, *args, **kwargs):
+        """
+        新しい管理者ユーザーを作成する。
+        パスワードはハッシュ化して保存する。
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # パスワードを取得し、ハッシュ化してユーザーを作成
+        user = User.objects.create_user(
+            email=serializer.validated_data['email'],
+            username=serializer.validated_data['username'],
+            password=request.data.get('password'),
+            is_superuser=serializer.validated_data.get('is_superuser', False)
+        )
+        
+        # 作成したユーザー情報を返す
+        response_serializer = self.get_serializer(user)
+        headers = self.get_success_headers(response_serializer.data)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class AdminLineLinkView(APIView):
     """
@@ -1107,7 +971,6 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
         reservation.save()
         return Response({'status': 'reservation cancelled'})
 
-    # ▼▼▼【ここが最重要】▼▼▼
     # このメソッドが、confirmやcancelと同じインデント（階層）で
     # クラス内に正しく定義されていることを確認してください。
     def add_event_to_google_calendar(self, reservation):

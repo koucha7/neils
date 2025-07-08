@@ -11,8 +11,6 @@ router = DefaultRouter()
 # これで、各ViewSetに対応するURLセットが自動生成されます
 router.register(r'salons', views.SalonViewSet, basename='salon')
 router.register(r'services', views.ServiceViewSet, basename='service')
-router.register(r'weekly-schedules', views.WeeklyDefaultScheduleViewSet, basename='weekly-schedule')
-router.register(r'date-schedules', views.DateScheduleViewSet, basename='date-schedule')
 router.register(r'reservations', views.ReservationViewSet, basename='reservation')
 router.register(r'admin/users', views.AdminUserManagementViewSet, basename='admin-user')
 router.register(r'admin/reservations', views.AdminReservationViewSet, basename='admin-reservation')
@@ -27,10 +25,8 @@ urlpatterns = [
     # 以下は、ViewSetではないAPIViewや関数ベースビューのパスです
     path('config/notifications/', views.NotificationSettingAPIView.as_view(), name='notification-setting'),
     path('availability/', views.AvailabilityCheckAPIView.as_view(), name='availability-check'),
-    path('monthly-availability/', views.MonthlyAvailabilityCheckAPIView.as_view(), name='monthly-availability'),
     path('health-check/', views.HealthCheckAPIView.as_view(), name='health-check'),
     path('statistics/', views.StatisticsView.as_view(), name='statistics'),
-    path('admin/monthly-schedule/', views.MonthlyScheduleAdminView.as_view(), name='admin-monthly-schedule'),
     path('admin/time-slots/', views.TimeSlotAPIView.as_view(), name='admin-time-slots'),
     path('admin/available-slots/', views.AdminAvailableSlotView.as_view(), name='admin-available-slots'),
     path('admin/configured-dates/', views.ConfiguredDatesView.as_view(), name='admin-configured-dates'),

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Salon, Service, Reservation, DateSchedule, NotificationSetting, WeeklyDefaultSchedule, AvailableTimeSlot, Customer # ← Customerをインポート
+from .models import Salon, Service, Reservation, NotificationSetting, AvailableTimeSlot, Customer # ← Customerをインポート
 
 admin.site.site_header = "MomoNail管理画面 - デプロイテスト成功"
 # Salon, Service, Reservation, NotificationSetting の登録
@@ -19,19 +19,3 @@ class ReservationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'start_time', 'service')
     search_fields = ('customer__name', 'customer__email', 'reservation_number') # ← 顧客名やメールで検索できるように
     readonly_fields = ('reservation_number',)
-
-# ★ 2つのスケジュールモデルを新しい形で登録
-@admin.register(WeeklyDefaultSchedule)
-class WeeklyDefaultScheduleAdmin(admin.ModelAdmin):
-    list_display = ('salon', 'get_day_of_week_display', 'is_closed', 'opening_time', 'closing_time')
-    list_filter = ('salon',)
-    ordering = ('day_of_week',)
-    list_editable = ('is_closed', 'opening_time', 'closing_time')
-
-
-@admin.register(DateSchedule)
-class DateScheduleAdmin(admin.ModelAdmin):
-    list_display = ('date', 'salon', 'is_closed', 'opening_time', 'closing_time')
-    list_filter = ('salon', 'is_closed')
-    ordering = ('-date',)
-    date_hierarchy = 'date'

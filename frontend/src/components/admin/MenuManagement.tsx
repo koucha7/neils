@@ -160,42 +160,61 @@ const MenuManagement: React.FC = () => {
       {editingService && <ServiceForm service={editingService} onSave={handleSave} onCancel={() => setEditingService(null)} DURATION_CHOICES={DURATION_CHOICES} />}
       
       {/* ★ 2. Service Table の実装 */}
-      <div className="bg-white p-4 rounded-lg shadow overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-3">メニュー名</th>
-              <th className="p-3">料金</th>
-              <th className="p-3">所要時間(分)</th>
-              <th className="p-3 text-center">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {services.map((service) => (
-              <tr key={service.id} className="border-b hover:bg-gray-50">
-                <td className="p-3">{service.name}</td>
-                <td className="p-3">{parseInt(service.price).toLocaleString()}円</td>
-                <td className="p-3">{service.duration_minutes}</td>
-                <td className="p-3 text-center space-x-4">
-                  <button
-                    onClick={() => setEditingService(service)}
-                    className="text-blue-600 hover:text-blue-800"
-                    aria-label="編集"
-                  >
-                    <Edit size={18} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(service.id)}
-                    className="text-red-600 hover:text-red-800"
-                    aria-label="削除"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </td>
+      <div className="bg-white p-4 rounded-lg shadow">
+
+        {/* スマホ用: カード表示 (md未満で表示) */}
+        <div className="md:hidden space-y-3">
+          {services.map((service) => (
+            <div key={service.id} className="p-4 rounded-lg border border-gray-200">
+              <div className="flex justify-between items-start">
+                <p className="font-semibold text-gray-800 flex-1 break-all">{service.name}</p>
+                <div className="flex space-x-3 ml-2">
+                   <button onClick={() => setEditingService(service)} className="text-blue-600 hover:text-blue-800" aria-label="編集">
+                     <Edit size={18} />
+                   </button>
+                   <button onClick={() => handleDelete(service.id)} className="text-red-600 hover:text-red-800" aria-label="削除">
+                     <Trash2 size={18} />
+                   </button>
+                </div>
+              </div>
+              <div className="mt-2 text-sm text-gray-600">
+                 <p><strong>料金:</strong> {parseInt(service.price).toLocaleString()}円</p>
+                 <p><strong>所要時間:</strong> {service.duration_minutes}分</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* PC用: テーブル表示 (md以上で表示) */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="p-3">メニュー名</th>
+                <th className="p-3">料金</th>
+                <th className="p-3">所要時間(分)</th>
+                <th className="p-3 text-center">操作</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {services.map((service) => (
+                <tr key={service.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3">{service.name}</td>
+                  <td className="p-3">{parseInt(service.price).toLocaleString()}円</td>
+                  <td className="p-3">{service.duration_minutes}</td>
+                  <td className="p-3 text-center space-x-4">
+                    <button onClick={() => setEditingService(service)} className="text-blue-600 hover:text-blue-800" aria-label="編集">
+                      <Edit size={18} />
+                    </button>
+                    <button onClick={() => handleDelete(service.id)} className="text-red-600 hover:text-red-800" aria-label="削除">
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

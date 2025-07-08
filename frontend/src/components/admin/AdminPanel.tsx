@@ -17,6 +17,8 @@ import CustomerManagement from './CustomerManagement';
 import AdminCustomerDetail from './CustomerDetail';
 import CustomerMemo from './CustomerMemo';
 import SendLineMessage from './SendLineMessage';
+import AdminUserDetail from './AdminUserDetail';
+import AdminUserCreate from './AdminUserCreate.tsx';
 import api from '../../api/axiosConfig';
 
 const AdminPanel: React.FC = () => {
@@ -119,6 +121,8 @@ const AdminPanel: React.FC = () => {
           <Route path="customers/:customerId" element={<AdminCustomerDetail />} />
           <Route path="customers/:customerId/memo" element={<CustomerMemo />} />
           <Route path="customers/:customerId/line" element={<SendLineMessage />} />
+          <Route path="users/:userId" element={<AdminUserDetail />} />
+          <Route path="users/new" element={<AdminUserCreate />} />
         </Routes>
       </main>
     </div>
