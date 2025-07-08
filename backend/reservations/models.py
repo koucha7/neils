@@ -74,41 +74,6 @@ class Salon(models.Model):
     def __str__(self):
         return self.name
 
-class WeeklyDefaultSchedule(models.Model):
-    DAY_CHOICES = ((0, '月曜日'), (1, '火曜日'), (2, '水曜日'), (3, '木曜日'), (4, '金曜日'), (5, '土曜日'), (6, '日曜日'))
-    salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='weekly_schedules', verbose_name='サロン')
-    day_of_week = models.IntegerField(choices=DAY_CHOICES, verbose_name='曜日')
-    is_closed = models.BooleanField(default=False, verbose_name='休業日')
-    opening_time = models.TimeField(null=True, blank=True, verbose_name='開店時間')
-    closing_time = models.TimeField(null=True, blank=True, verbose_name='閉店時間')
-    is_holiday = models.BooleanField(default=False)
-
-    class Meta:
-        unique_together = ('salon', 'day_of_week')
-        ordering = ['day_of_week']
-        verbose_name = '基本スケジュール'
-        verbose_name_plural = '基本スケジュール'
-
-    def __str__(self):
-        return f"{self.salon.name} - {self.get_day_of_week_display()}"
-
-class DateSchedule(models.Model):
-    salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='date_schedules', verbose_name='サロン')
-    date = models.DateField(unique=True, verbose_name='日付')
-    is_closed = models.BooleanField(default=False, verbose_name='休業日')
-    opening_time = models.TimeField(null=True, blank=True, verbose_name='開店時間')
-    closing_time = models.TimeField(null=True, blank=True, verbose_name='閉店時間')
-    is_holiday = models.BooleanField(default=False)
-
-    class Meta:
-        verbose_name = '特別スケジュール'
-        verbose_name_plural = '特別スケジュール'
-        ordering = ['date']
-
-    def __str__(self):
-        status = "休業日" if self.is_closed else f"{self.opening_time or ''} - {self.closing_time or ''}"
-        return f"{self.date.strftime('%Y-%m-%d')} ({status})"
-
 class Service(models.Model):
     salon = models.ForeignKey(Salon, on_delete=models.CASCADE, related_name='services')
     name = models.CharField(max_length=100)

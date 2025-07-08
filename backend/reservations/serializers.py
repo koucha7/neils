@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Salon, Service, Reservation, DateSchedule, NotificationSetting, WeeklyDefaultSchedule, Customer, UserProfile
+from .models import Salon, Service, Reservation, NotificationSetting, Customer, UserProfile
 from django.contrib.auth.models import User
 
 class SalonSerializer(serializers.ModelSerializer):
@@ -10,16 +10,6 @@ class SalonSerializer(serializers.ModelSerializer):
 class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
-        fields = '__all__'
-
-class WeeklyDefaultScheduleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = WeeklyDefaultSchedule
-        fields = '__all__'
-
-class DateScheduleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DateSchedule
         fields = '__all__'
 
 class CustomerSerializer(serializers.ModelSerializer):
@@ -37,7 +27,7 @@ class ReservationSerializer(serializers.ModelSerializer):
     # 予約情報に顧客の詳細情報を含めるようにする
     customer_name = serializers.SerializerMethodField()
     service_name = serializers.CharField(source='service.name', read_only=True)
-    customer_id = serializers.IntegerField(source='customer.id', read_only=True)
+    customer_id = serializers.UUIDField(source='customer.id', read_only=True)
 
     class Meta:
         model = Reservation

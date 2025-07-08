@@ -28,7 +28,6 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // ▼▼▼【1. isLoggedInをStateで管理】▼▼▼
   // 初期値はlocalStorageにトークンがあるかどうかで設定します
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => !!localStorage.getItem('adminAccessToken'));
 
