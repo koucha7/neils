@@ -6,6 +6,8 @@ import hashlib
 import hmac
 import base64
 import json
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from .authentication import CustomerJWTAuthentication
 from datetime import datetime, time, timedelta, date
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
