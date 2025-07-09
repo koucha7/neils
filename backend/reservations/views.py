@@ -887,8 +887,7 @@ class LineWebhookView(APIView):
         return HttpResponse(status=200)
 
     def handle_image_message(self, line_user_id, customer_name, message_id):
-        """画像メッセージを処理して管理者に転送するヘルパー関数"""
-        # 顧客向けチャネルのアクセストークンを取得
+        """画像メッセージを処理してGCSにアップロードし、管理者に転送する"""
         channel_access_token = os.environ.get('CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN')
         if not channel_access_token:
             print("エラー: 顧客向けチャネルアクセストークンが設定されていません。")
@@ -904,15 +903,15 @@ class LineWebhookView(APIView):
             print(f"LINEからの画像ダウンロードに失敗: {e}")
             return
 
-        # 2. 画像をサーバーに保存
+        # 2. GCSに画像を保存 (django-storagesが自動で処理)
         file_name = f"line_images/{uuid.uuid4()}.jpg"
         file_path = default_storage.save(file_name, ContentFile(response.content))
 
-        # 3. 保存した画像の公開URLを構築
-        backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
-        image_url = f"{backend_url}{settings.MEDIA_URL}{file_path}"
-        
-        print(f"転送する画像URL: {image_url}")
+        # 3. GCS上の公開URLを取得
+        # ★★★ ここが重要な変更点 ★★★
+        image_url = default_storage.url(file_path)
+
+        print(f"GCSに保存完了。転送する画像URL: {image_url}")
 
         # 4. 管理者にテキストと画像を転送
         text_message = f"【お客様からの画像】\n送信者: {customer_name}様"
