@@ -92,6 +92,7 @@ class Customer(models.Model):
         help_text="LINEでの通知や連携に使用する一意のIDです。"
     )
     name = models.CharField("氏名", max_length=100)
+    furigana = models.CharField("フリガナ", max_length=100, blank=True)
     email = models.EmailField(
         'メールアドレス', unique=True, null=True, blank=True,
         help_text="顧客を一意に識別するために使用します。"
