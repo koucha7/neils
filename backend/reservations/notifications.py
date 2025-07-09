@@ -80,3 +80,34 @@ def send_admin_line_notification(message_text):
         print(f"管理者向け通知が正常に送信されました。")
     except requests.exceptions.RequestException as e:
         print(f"管理者向け通知の送信に失敗しました: {e}")
+
+def send_admin_line_image(image_url):
+    """管理者にLINEで画像メッセージを送信する"""
+    admin_user_id = os.environ.get('ADMIN_LINE_USER_ID')
+    channel_access_token = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
+
+    if not all([admin_user_id, channel_access_token]):
+        print("エラー: 管理者LINE通知用の設定が不足しています。")
+        return False, "設定不足"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {channel_access_token}'
+    }
+    payload = {
+        'to': admin_user_id,
+        'messages': [{
+            'type': 'image',
+            'originalContentUrl': image_url,
+            'previewImageUrl': image_url
+        }]
+    }
+    
+    try:
+        response = requests.post('https://api.line.me/v2/bot/message/push', headers=headers, json=payload)
+        response.raise_for_status()
+        print("管理者への画像通知に成功しました。")
+        return True, "成功"
+    except requests.exceptions.RequestException as e:
+        print(f"管理者への画像通知に失敗しました: {e.response.text}")
+        return False, e.response.text

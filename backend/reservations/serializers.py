@@ -15,7 +15,17 @@ class ServiceSerializer(serializers.ModelSerializer):
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ['id', 'line_user_id', 'name', 'email', 'phone_number', 'notes', 'created_at', 'updated_at']
+        fields = [
+            'id', 
+            'line_user_id', 
+            'name', 
+            'email', 
+            'phone_number', 
+            'line_display_name',
+            'line_picture_url',
+            'notes',
+            'created_at',
+        ]
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -62,17 +72,19 @@ class ReservationSerializer(serializers.ModelSerializer):
 class ReservationCreateSerializer(serializers.ModelSerializer):
     # フロントエンドからPOSTされる顧客情報フィールド
     customer_name = serializers.CharField(write_only=True, label="氏名")
+    customer_furigana = serializers.CharField(write_only=True, label="フリガナ", required=False)
     customer_email = serializers.EmailField(write_only=True, label="メールアドレス")
     customer_phone = serializers.CharField(write_only=True, required=False, allow_blank=True, label="電話番号")
     
     print(customer_name)
+    print(customer_furigana)
     print(customer_email)
     print(customer_name)
     class Meta:
         model = Reservation
         fields = [
             'salon', 'service', 'start_time',
-            'customer_name', 'customer_email', 'customer_phone'
+            'customer_name', 'customer_furigana', 'customer_email', 'customer_phone'
         ]
 
     def create(self, validated_data):
@@ -84,6 +96,7 @@ class ReservationCreateSerializer(serializers.ModelSerializer):
 
         # フォームから送信された内容で、既存の顧客情報を更新
         customer.name = validated_data.pop('customer_name')
+        customer.furigana = validated_data.pop('customer_furigana')
         customer.email = validated_data.pop('customer_email')
         customer.phone_number = validated_data.pop('customer_phone', customer.phone_number)
         customer.save()

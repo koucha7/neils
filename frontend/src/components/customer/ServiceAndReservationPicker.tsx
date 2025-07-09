@@ -2,9 +2,10 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../../api/axiosConfig";
 import "react-datepicker/dist/react-datepicker.css";
-import { format, isSameDay } from "date-fns";
-import { useAuth } from "../../context/AuthContext"
-import SharedCalendar from "../common/SharedCalendar"; // 共通カレンダーをインポート
+import { format} from "date-fns";
+import { useAuth } from "../../context/AuthContext";
+import SharedCalendar from "../common/SharedCalendar";
+import { isSameDay } from "date-fns/isSameDay";
 
 // --- 型定義 ---
 interface Salon {
@@ -36,6 +37,7 @@ const ServiceAndReservationPicker: React.FC = () => {
   const [timeSlotsLoading, setTimeSlotsLoading] = useState<boolean>(false);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState<string>("");
+  const [customerFurigana, setCustomerFurigana] = useState<string>("");
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [customerEmail, setCustomerEmail] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -49,6 +51,7 @@ const ServiceAndReservationPicker: React.FC = () => {
         try {
           const response = await api.get("/api/me/");
           setCustomerName(response.data.name || "");
+          setCustomerFurigana(response.data.furigana || "");
           setCustomerEmail(response.data.email || "");
           setCustomerPhone(response.data.phone_number || "");
         } catch (error) {
@@ -104,12 +107,12 @@ const ServiceAndReservationPicker: React.FC = () => {
 
     // --- 常に新しい日付が選択されたものとして処理を開始 ---
     // これにより、「戻る」で戻ってきた場合でも同じ日付を再度選択できます。
-    
+
     setSelectedDate(date);
     setTimeSlotsLoading(true); // 時間枠の読み込みを開始
-    setStepError(null);         // エラーメッセージをリセット
-    setAvailableTimeSlots([]);  // 既存の時間枠をクリア
-    setSelectedTime(null);      // 選択されていた時間をクリア
+    setStepError(null); // エラーメッセージをリセット
+    setAvailableTimeSlots([]); // 既存の時間枠をクリア
+    setSelectedTime(null); // 選択されていた時間をクリア
 
     try {
       const formattedDate = format(date, "yyyy-MM-dd");
@@ -124,9 +127,11 @@ const ServiceAndReservationPicker: React.FC = () => {
         setCurrentStep("TIME");
       } else {
         // 時間枠がなければ、エラーメッセージを表示
-        setStepError("申し訳ありません。この日は受付可能な時間が設定されていません。");
+        setStepError(
+          "申し訳ありません。この日は受付可能な時間が設定されていません。"
+        );
         // 日付選択ステップに留まる
-        setCurrentStep("DATE"); 
+        setCurrentStep("DATE");
       }
     } catch (err) {
       setStepError("予約可能な時間の取得に失敗しました。");
@@ -143,22 +148,40 @@ const ServiceAndReservationPicker: React.FC = () => {
 
   const handleProceedToConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerName || !customerEmail) {
-      alert("必須項目（お名前とメールアドレス）を入力してください。");
+
+    // 1. フリガナのチェック (カタカナとスペースのみ許可)
+    if (
+      customerFurigana &&
+      !/^[\u30A0-\u30FF\u30FC\s]+$/.test(customerFurigana)
+    ) {
+      alert("フリガナはカタカナで入力してください。");
       return;
     }
+
+    // 2. メールアドレスの形式チェック
+    if (!customerEmail || !/^\S+@\S+\.\S+$/.test(customerEmail)) {
+      alert("有効なメールアドレスを入力してください。");
+      return;
+    }
+
+    // 3. 電話番号のチェック (数字のみ許可)
+    if (customerPhone && !/^[0-9]+$/.test(customerPhone)) {
+      alert("電話番号は数字のみで入力してください。");
+      return;
+    }
+
+    // すべてのチェックを通過したら、次のステップへ
     setCurrentStep("CONFIRMATION");
   };
-    
+
   const handleBackToDate = () => {
-      setCurrentStep("DATE");
-      setSelectedDate(null); 
-      setAvailableTimeSlots([]);
-      setStepError(null);
+    setCurrentStep("DATE");
+    setSelectedDate(null);
+    setAvailableTimeSlots([]);
+    setStepError(null);
   };
 
   const handleFinalSubmit = useCallback(async () => {
-    // (関数の上部は変更なし)
     if (!selectedDate ||!selectedTime ||!customerName ||!customerEmail ||!salon ||!selectedService) {
       alert("必須項目が不足しています。");
       return;
@@ -178,6 +201,7 @@ const ServiceAndReservationPicker: React.FC = () => {
         service: selectedService.id,
         start_time: format(finalDateTime, "yyyy-MM-dd'T'HH:mm:ss"),
         customer_name: customerName,
+        customer_furigana: customerFurigana,
         customer_email: customerEmail,
         customer_phone: customerPhone,
       };
@@ -185,23 +209,26 @@ const ServiceAndReservationPicker: React.FC = () => {
       navigate(`/reservation-complete/${response.data.reservation_number}`);
     } catch (err: any) {
       console.error("Failed to create reservation:", err);
-      const errorMessage = err.response?.data?.detail || err.message || '';
+      const errorMessage = err.response?.data?.detail || '';
 
       // ★★★【ここからがエラーハンドリングの修正箇所】★★★
-      if (typeof errorMessage === 'string' && errorMessage.includes("Token does not contain a line_user_id")) {
+      if (typeof errorMessage === 'string' && errorMessage.includes("not valid for any token type")) {
         // トークンが無効な場合
         alert("セッションが切れました。再度LINEでログインしてください。");
         logout(); // ログアウト処理を実行してログインページに遷移させる
       } else {
         // その他のエラーの場合
-        setError(`予約作成に失敗しました: ${errorMessage}`);
+        setError(`予約作成に失敗しました: ${errorMessage || err.message}`);
       }
+      // ★★★【修正ここまで】★★★
+
     } finally {
       setSubmitting(false);
     }
   }, [
     customerEmail,
     customerName,
+    customerFurigana,
     customerPhone,
     navigate,
     salon,
@@ -209,6 +236,7 @@ const ServiceAndReservationPicker: React.FC = () => {
     selectedService,
     selectedTime,
     submitting,
+    logout
   ]);
 
   const formatDuration = useCallback((minutes: number): string => {
@@ -263,10 +291,11 @@ const ServiceAndReservationPicker: React.FC = () => {
                 <div
                   key={service.id}
                   onClick={() => handleSelectService(service)}
-                  className={`flex justify-between items-center p-4 border rounded-lg cursor-pointer transition-colors ${selectedService?.id === service.id
+                  className={`flex justify-between items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                    selectedService?.id === service.id
                       ? "bg-gray-200 border-gray-400"
                       : "bg-white border-gray-300 hover:bg-gray-100"
-                    }`}
+                  }`}
                 >
                   <div>
                     <p className="text-lg font-semibold">{service.name}</p>
@@ -348,12 +377,12 @@ const ServiceAndReservationPicker: React.FC = () => {
                 ))}
               </div>
             )}
-              <button
-                  onClick={handleBackToDate}
-                  className="mt-4 text-blue-600 hover:underline"
-              >
-                  ← 日付の選択に戻る
-              </button>
+            <button
+              onClick={handleBackToDate}
+              className="mt-4 text-blue-600 hover:underline"
+            >
+              ← 日付の選択に戻る
+            </button>
           </div>
         )}
 
@@ -396,15 +425,30 @@ const ServiceAndReservationPicker: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
-                      メールアドレス
+                      お名前（フリガナ・カタカナ）
+                    </label>
+                    <input
+                      type="text"
+                      value={customerFurigana}
+                      onChange={(e) => setCustomerFurigana(e.target.value)}
+                      required
+                      className="w-full p-2 border rounded mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      メールアドレス（必須）
                     </label>
                     <input
                       type="email"
                       value={customerEmail}
                       onChange={(e) => setCustomerEmail(e.target.value)}
+                      required
                       className="w-full p-2 border rounded mt-1"
                     />
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       電話番号(ハイフンなし)
@@ -456,34 +500,57 @@ const ServiceAndReservationPicker: React.FC = () => {
                 </p>
               </div>
               <div className="space-y-3 bg-gray-50 p-4 rounded-md">
-              <div className="flex">
-                <strong className="w-24 flex-shrink-0 text-gray-500">サービス:</strong>
-                <span className="flex-1">{selectedService.name}</span>
-              </div>
-              <div className="flex">
-                <strong className="w-24 flex-shrink-0 text-gray-500">料金:</strong>
-                <span className="flex-1">{parseInt(selectedService.price).toLocaleString()}円</span>
-              </div>
-              <div className="flex">
-                <strong className="w-24 flex-shrink-0 text-gray-500">日時:</strong>
-                <span className="flex-1">{`${format(selectedDate, "yyyy年MM月dd日")} ${selectedTime}`}</span>
-              </div>
-              
-              <hr className="my-3" />
+                <div className="flex">
+                  <strong className="w-24 flex-shrink-0 text-gray-500">
+                    サービス:
+                  </strong>
+                  <span className="flex-1">{selectedService.name}</span>
+                </div>
+                <div className="flex">
+                  <strong className="w-24 flex-shrink-0 text-gray-500">
+                    料金:
+                  </strong>
+                  <span className="flex-1">
+                    {parseInt(selectedService.price).toLocaleString()}円
+                  </span>
+                </div>
+                <div className="flex">
+                  <strong className="w-24 flex-shrink-0 text-gray-500">
+                    日時:
+                  </strong>
+                  <span className="flex-1">{`${format(
+                    selectedDate,
+                    "yyyy年MM月dd日"
+                  )} ${selectedTime}`}</span>
+                </div>
 
-              <div className="flex">
-                <strong className="w-24 flex-shrink-0 text-gray-500">お名前:</strong>
-                <span className="flex-1">{customerName}</span>
+                <hr className="my-3" />
+
+                <div className="flex">
+                  <strong className="w-24 flex-shrink-0 text-gray-500">
+                    お名前:
+                  </strong>
+                  <span className="flex-1">{customerName}</span>
+                </div>
+                <div className="flex">
+                  <strong className="w-28 flex-shrink-0 text-gray-500">
+                    お名前(カナ):
+                  </strong>
+                  <span className="flex-1">{customerFurigana}</span>
+                </div>
+                <div className="flex">
+                  <strong className="w-24 flex-shrink-0 text-gray-500">
+                    メール:
+                  </strong>
+                  <span className="flex-1 break-all">{customerEmail}</span>
+                </div>
+                <div className="flex">
+                  <strong className="w-24 flex-shrink-0 text-gray-500">
+                    電話番号:
+                  </strong>
+                  <span className="flex-1">{customerPhone || "未入力"}</span>
+                </div>
               </div>
-              <div className="flex">
-                <strong className="w-24 flex-shrink-0 text-gray-500">メール:</strong>
-                <span className="flex-1 break-all">{customerEmail}</span>
-              </div>
-              <div className="flex">
-                <strong className="w-24 flex-shrink-0 text-gray-500">電話番号:</strong>
-                <span className="flex-1">{customerPhone || "未入力"}</span>
-              </div>
-            </div>
               {submitting && (
                 <p className="text-center text-blue-600 mt-4">
                   予約を送信中...

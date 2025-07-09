@@ -5,6 +5,7 @@ import api from '../../api/axiosConfig';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { SlidersHorizontal, ChevronUp } from 'lucide-react';
+import { User } from 'lucide-react';
 
 // 顧客データの型
 interface Customer {
@@ -12,6 +13,8 @@ interface Customer {
   name: string;
   email: string | null;
   phone_number: string | null;
+  line_display_name: string | null;
+  line_picture_url: string | null;
   created_at: string;
 }
 
@@ -72,42 +75,74 @@ const CustomerManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* スマホ用: カード表示 (md未満で表示) */}
+      {/* スマホ用: カード表示 */}
       <div className="md:hidden space-y-3 mt-4">
         {customers.map((customer) => (
           <div 
             key={customer.id} 
             onClick={() => handleRowClick(customer.id)}
-            className="bg-white p-4 rounded-lg shadow border-l-4 border-indigo-500 cursor-pointer"
+            className="bg-white p-4 rounded-lg shadow border cursor-pointer"
           >
-            <p className="text-lg font-semibold text-gray-800">{customer.name}</p>
-            <div className="mt-2 text-sm text-gray-600 space-y-1 pl-2 border-l border-gray-200">
+            <div className="flex items-center space-x-4">
+              {/* LINEアイコン */}
+              <div className="flex-shrink-0">
+                {customer.line_picture_url ? (
+                  <img src={customer.line_picture_url} alt="LINE Icon" className="w-12 h-12 rounded-full" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                    <User size={24} className="text-gray-500" />
+                  </div>
+                )}
+              </div>
+              {/* 顧客情報 */}
+              <div className="flex-1">
+                <p className="text-lg font-semibold text-gray-800">{customer.name}</p>
+                <p className="text-sm text-gray-500">{customer.line_display_name || 'LINE名未登録'}</p>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t text-sm text-gray-600 space-y-1">
               <p><strong>メール:</strong> {customer.email || 'N/A'}</p>
               <p><strong>電話番号:</strong> {customer.phone_number || 'N/A'}</p>
-              <p><strong>登録日:</strong> {format(new Date(customer.created_at), 'yyyy/MM/dd')}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* PC用: テーブル表示 (md以上で表示) */}
+      {/* PC用: テーブル表示 */}
       <div className="hidden md:block overflow-x-auto mt-4">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">氏名</th>
+              {/* ▼▼▼ テーブルヘッダーを修正 ▼▼▼ */}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">顧客名</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE情報</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">メールアドレス</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">電話番号</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">登録日</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {customers.map((customer) => (
               <tr key={customer.id} onClick={() => handleRowClick(customer.id)} className="hover:bg-gray-100 cursor-pointer">
-                <td className="px-6 py-4 whitespace-nowrap">{customer.name}</td>
+                {/* ▼▼▼ テーブルの列を修正 ▼▼▼ */}
+                <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{customer.name}</td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 h-10 w-10">
+                      {customer.line_picture_url ? (
+                        <img className="h-10 w-10 rounded-full" src={customer.line_picture_url} alt="LINE Icon" />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                           <User size={20} className="text-gray-500" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="ml-4">
+                      <div className="text-sm text-gray-500">{customer.line_display_name || 'N/A'}</div>
+                    </div>
+                  </div>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">{customer.email || 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap">{customer.phone_number || 'N/A'}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{format(new Date(customer.created_at), 'yyyy/MM/dd')}</td>
               </tr>
             ))}
           </tbody>

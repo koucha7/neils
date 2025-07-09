@@ -6,9 +6,12 @@ import api from '../../api/axiosConfig';
 import { format } from 'date-fns';
 import { ArrowLeft } from 'lucide-react';
 import { MessageSquare, FileText } from 'lucide-react';
+import { User } from 'lucide-react';
 
 // 型定義
-interface Customer { id: number; name: string; email: string | null; phone_number: string | null; }
+interface Customer { id: number; name: string; email: string | null; phone_number: string | null; 
+  line_display_name: string | null;
+  line_picture_url: string | null;}
 interface Reservation { id: number; reservation_number: string; start_time: string; status: string; service_name: string; }
 
 const CustomerDetail: React.FC = () => {
@@ -40,17 +43,36 @@ const CustomerDetail: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* 顧客基本情報セクション */}
+      {/* 顧客基本情報セクション */}
       <div className="bg-white p-6 rounded-lg shadow-md">
-        <div className="flex items-center mb-4">
+        <div className="flex items-center mb-6">
           <button onClick={() => navigate('/admin/customers')} className="mr-4 p-2 hover:bg-gray-100 rounded-full">
             <ArrowLeft size={24} />
           </button>
-          <h2 className="text-2xl font-bold">顧客詳細</h2>
+          <div className="flex items-center space-x-4">
+             {customer.line_picture_url ? (
+                <img src={customer.line_picture_url} alt="LINE Icon" className="w-16 h-16 rounded-full"/>
+             ) : (
+                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                  <User size={32} className="text-gray-500"/>
+                </div>
+             )}
+             <div>
+                <h2 className="text-2xl font-bold">{customer.name}</h2>
+                <p className="text-md text-gray-500">{customer.line_display_name || 'LINE名未登録'}</p>
+             </div>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <p><strong>氏名:</strong> {customer.name}</p>
-          <p><strong>メールアドレス:</strong> {customer.email || 'N/A'}</p>
-          <p><strong>電話番号:</strong> {customer.phone_number || 'N/A'}</p>
+        
+        <div className="space-y-3 text-gray-700 pl-4 border-l-2 ml-8">
+          <div className="flex items-center">
+            <strong className="w-28 text-gray-500">メールアドレス:</strong>
+            <span className="break-all">{customer.email || 'N/A'}</span>
+          </div>
+          <div className="flex items-center">
+            <strong className="w-28 text-gray-500">電話番号:</strong>
+            <span>{customer.phone_number || 'N/A'}</span>
+          </div>
         </div>
       </div>
 
