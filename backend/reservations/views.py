@@ -36,6 +36,7 @@ from .notifications import send_line_push_message, send_admin_line_notification
 from .line_utils import get_line_user_profile
 from rest_framework_simplejwt.tokens import RefreshToken
 from .notifications import send_admin_line_image
+from rest_framework.parsers import MultiPartParser, JSONParser
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
