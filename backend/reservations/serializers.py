@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Salon, Service, Reservation, NotificationSetting, Customer, UserProfile
+from .models import Salon, Service, Reservation, NotificationSetting, Customer, UserProfile, LineMessage
 from django.contrib.auth.models import User
 
 class SalonSerializer(serializers.ModelSerializer):
@@ -139,3 +139,22 @@ class AdminUserSerializer(serializers.ModelSerializer):
         """
         # ユーザーにprofileがあり、かつそのprofileにline_user_idが設定されていればTrueを返す
         return hasattr(obj, 'profile') and obj.profile.line_user_id is not None
+    
+class LineMessageSerializer(serializers.ModelSerializer):
+    """LINEメッセージ履歴のためのシリアライザー"""
+    # 顧客情報をネストして含めるための設定
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    customer_line_picture_url = serializers.URLField(source='customer.line_picture_url', read_only=True)
+
+    class Meta:
+        model = LineMessage
+        fields = [
+            'id', 
+            'customer', # 顧客IDも念のため含める
+            'customer_name', 
+            'customer_line_picture_url',
+            'sender_type', 
+            'message', 
+            'image_url', 
+            'sent_at'
+        ]

@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom'; // ★ 1. 必要なフックを追加
 import {
-  BarChart3, Calendar, LogOut, Menu as MenuIcon, Scissors, Users, X, ClipboardList
+  BarChart3, Calendar, LogOut, Menu as MenuIcon, Scissors, Users, X, ClipboardList, Mail
 } from 'lucide-react';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import LoginScreen from './LoginScreen';
@@ -19,6 +19,7 @@ import CustomerMemo from './CustomerMemo';
 import SendLineMessage from './SendLineMessage';
 import AdminUserDetail from './AdminUserDetail';
 import AdminUserCreate from './AdminUserCreate.tsx';
+import LineHistoryPage from './LineHistoryPage';
 import api from '../../api/axiosConfig';
 
 const AdminPanel: React.FC = () => {
@@ -61,6 +62,7 @@ const AdminPanel: React.FC = () => {
     { to: "/admin/reservations", label: "予約確認", icon: ClipboardList },
     { to: "/admin/schedule", label: "受付時間設定", icon: Calendar },
     { to: "/admin/customers", label: "顧客管理", icon: Users },
+    { to: "/admin/line-history", label: "LINE履歴", icon: Mail },
     { to: "/admin/menu", label: "メニュー管理", icon: Scissors },
     { to: "/admin/users", label: "ユーザー管理", icon: Users },
     { to: "/admin/statistics", label: "統計", icon: BarChart3 },
@@ -123,6 +125,7 @@ const AdminPanel: React.FC = () => {
           <Route path="customers/:customerId/line" element={<SendLineMessage />} />
           <Route path="users/:userId" element={<AdminUserDetail />} />
           <Route path="users/new" element={<AdminUserCreate />} />
+            <Route path="line-history" element={<LineHistoryPage />} />
         </Routes>
       </main>
     </div>

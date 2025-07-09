@@ -37,6 +37,7 @@ from .line_utils import get_line_user_profile
 from rest_framework_simplejwt.tokens import RefreshToken
 from .notifications import send_admin_line_image
 from rest_framework.parsers import MultiPartParser, JSONParser
+from django.db.models import Max, OuterRef, Subquery
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
@@ -50,6 +51,7 @@ from .models import (
     Customer,
     AvailableTimeSlot,
     UserProfile,
+    LineMessage,
 )
 
 from .serializers import (
@@ -61,6 +63,7 @@ from .serializers import (
     CustomerSerializer,
     UserSerializer,
     AdminUserSerializer,
+    LineMessageSerializer,
 )
 
 class SalonViewSet(viewsets.ModelViewSet):
@@ -875,10 +878,26 @@ class LineWebhookView(APIView):
                         )
                         send_admin_line_notification(forward_message)
 
-                    # ★★★【画像メッセージの処理を追加】★★★
                     elif message_type == 'image':
                         self.handle_image_message(line_user_id, customer_name, message.get('id'))
 
+                    # ★ メッセージをDBに保存
+                    message_type = event.get('message', {}).get('type')
+                    if message_type == 'text':
+                        LineMessage.objects.create(
+                            customer=customer,
+                            sender_type='customer',
+                            message=event.get('message', {}).get('text')
+                        )
+                    elif message_type == 'image':
+                        # 画像の処理もここに統合
+                        image_url = self.handle_image_message(event.get('message', {}).get('id'))
+                        if image_url:
+                           LineMessage.objects.create(
+                               customer=customer,
+                               sender_type='customer',
+                               image_url=image_url
+                           )
         except Exception as e:
             print(f"Webhook処理中にエラーが発生しました: {e}")
             return HttpResponseBadRequest()
@@ -907,7 +926,6 @@ class LineWebhookView(APIView):
         file_path = default_storage.save(file_name, ContentFile(response.content))
 
         # 3. GCS上の公開URLを取得
-        # ★★★ ここが重要な変更点 ★★★
         image_url = default_storage.url(file_path)
 
         print(f"GCSに保存完了。転送する画像URL: {image_url}")
@@ -916,6 +934,7 @@ class LineWebhookView(APIView):
         text_message = f"【お客様からの画像】\n送信者: {customer_name}様"
         send_admin_line_notification(text_message)
         send_admin_line_image(image_url)
+        return image_url
 
 class AdminReservationViewSet(viewsets.ModelViewSet):
     """
@@ -1062,7 +1081,14 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
         serializer = ReservationSerializer(reservations, many=True)
         return Response(serializer.data)
     
-    # ▼▼▼【send_lineを削除し、新しいsend_messageアクションを定義】▼▼▼
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """特定の顧客のLINEメッセージ履歴を返す"""
+        customer = self.get_object()
+        messages = LineMessage.objects.filter(customer=customer).order_by('sent_at')
+        serializer = LineMessageSerializer(messages, many=True)
+        return Response(serializer.data)
+    
     @action(detail=True, methods=['post'], url_path='send-message')
     def send_message(self, request, pk=None):
         """特定の顧客にLINEメッセージ（テキストまたは画像）を送信する"""
@@ -1098,10 +1124,11 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
 
             # 2. テキストが入力されていた場合の処理
             if message_text:
-                messages_to_send.append({
-                    "type": "text",
-                    "text": message_text
-                })
+                LineMessage.objects.create(
+                    customer=customer,
+                    sender_type='admin',
+                    message=message_text
+                )
             
             # 3. 組み立てたメッセージを顧客に送信
             if messages_to_send:
@@ -1122,3 +1149,43 @@ def admin_me(request):
     """
     serializer = AdminUserSerializer(request.user)
     return Response(serializer.data)
+
+class LineMessageHistoryView(generics.ListAPIView):
+    """
+    管理者向けのLINEメッセージ履歴API。
+    顧客、日付、本文での検索機能を持つ。
+    """
+    serializer_class = LineMessageSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        queryset = LineMessage.objects.select_related('customer').order_by('-sent_at')
+
+        # --- 検索パラメータの取得 ---
+        customer_id = self.request.query_params.get('customer_id')
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        query = self.request.query_params.get('query')
+
+        # --- フィルタリング ---
+        if customer_id:
+            queryset = queryset.filter(customer__id=customer_id)
+        
+        if start_date:
+            queryset = queryset.filter(sent_at__date__gte=start_date)
+
+        if end_date:
+            queryset = queryset.filter(sent_at__date__lte=end_date)
+            
+        if query:
+            # 本文、顧客名、フリガナ、メール、電話番号から横断的に検索
+            queryset = queryset.filter(
+                Q(message__icontains=query) |
+                Q(customer__name__icontains=query) |
+                Q(customer__furigana__icontains=query) |
+                Q(customer__email__icontains=query) |
+                Q(customer__phone_number__icontains=query)
+            )
+
+        return queryset

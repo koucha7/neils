@@ -5,7 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axiosConfig';
 import { format } from 'date-fns';
 import { ArrowLeft } from 'lucide-react';
-import { MessageSquare, FileText } from 'lucide-react';
+import { MessageSquare, FileText, History } from 'lucide-react';
 import { User } from 'lucide-react';
 
 // 型定義
@@ -90,6 +90,12 @@ const CustomerDetail: React.FC = () => {
             className="flex-1 flex items-center justify-center bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700"
           >
             <MessageSquare size={20} className="mr-2" /> LINEでメッセージを送信
+          </button>
+          <button
+              onClick={() => navigate(`/admin/line-history?customer_id=${customerId}`)}
+              className="..."
+          >
+              <History size={20} className="mr-2" /> チャット履歴
           </button>
         </div>
       </div>

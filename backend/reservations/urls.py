@@ -38,6 +38,7 @@ urlpatterns = [
     path('admin/line/link/', views.AdminLineLinkView.as_view(), name='admin-line-link'),
     path('admin/link-line/', views.AdminLineLinkView.as_view(), name='admin-link-line'),
     path('admin/login-line/', views.AdminLineLoginView.as_view(), name='admin-login-line'),
+    path('admin/line-history/', views.LineMessageHistoryView.as_view(), name='admin-line-history'),
     path('confirm-reservation-and-notify/', views.confirm_reservation_and_notify, name='confirm-reservation-and-notify'),
     
 ]

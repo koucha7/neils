@@ -10,7 +10,6 @@ const SendLineMessage: React.FC = () => {
   const [customerName, setCustomerName] = useState('');
   const [message, setMessage] = useState('');
   
-  // ▼▼▼【画像関連のStateを追加】▼▼▼
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -21,7 +20,6 @@ const SendLineMessage: React.FC = () => {
     // ... (顧客名取得のロジックは変更なし)
   }, [customerId]);
 
-  // ▼▼▼【画像選択時の処理を追加】▼▼▼
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -40,7 +38,6 @@ const SendLineMessage: React.FC = () => {
     setImagePreview(null);
   };
 
-  // ▼▼▼【送信処理を修正】▼▼▼
   const handleSend = async () => {
     if (!message.trim() && !imageFile) {
       alert('メッセージまたは画像を入力してください。');
@@ -91,7 +88,6 @@ const SendLineMessage: React.FC = () => {
         disabled={isSending}
       />
 
-      {/* ▼▼▼【画像選択UIを追加】▼▼▼ */}
       <div className="mt-4">
         <label htmlFor="image-upload" className="flex items-center gap-2 text-blue-600 cursor-pointer hover:underline">
           <ImageIcon size={20} />

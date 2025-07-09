@@ -189,3 +189,25 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return self.user.username
+    
+class LineMessage(models.Model):
+    """顧客とのLINEのやり取りを保存するモデル"""
+    SENDER_CHOICES = (
+        ('customer', '顧客'),
+        ('admin', '管理者'),
+    )
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='line_messages')
+    sender_type = models.CharField(max_length=10, choices=SENDER_CHOICES, verbose_name="送信者")
+    message = models.TextField(blank=True, null=True, verbose_name="テキストメッセージ")
+    image_url = models.URLField(max_length=2048, blank=True, null=True, verbose_name="画像URL")
+    sent_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="送信日時")
+
+    class Meta:
+        ordering = ['sent_at']
+        verbose_name = "LINEメッセージ履歴"
+        verbose_name_plural = "LINEメッセージ履歴"
+
+    def __str__(self):
+        return f"{self.customer.name}へのメッセージ ({self.sender_type}) at {self.sent_at.strftime('%Y-%m-%d %H:%M')}"
