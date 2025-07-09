@@ -177,5 +177,4 @@ DEFAULT_FILE_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
 # .envファイルからGCSの情報を取得
 GS_BUCKET_NAME = os.environ.get('GS_BUCKET_NAME')
 GS_PROJECT_ID = os.environ.get('GS_PROJECT_ID')
-
-GS_DEFAULT_ACL = 'publicRead'
+GS_UNIFORM_BUCKET_LEVEL_ACCESS = True
