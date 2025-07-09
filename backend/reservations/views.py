@@ -885,19 +885,20 @@ class LineWebhookView(APIView):
                     message_type = event.get('message', {}).get('type')
                     if message_type == 'text':
                         LineMessage.objects.create(
-                            customer=customer,
-                            sender_type='customer',
-                            message=event.get('message', {}).get('text')
-                        )
+                        customer=customer,
+                        message=message_text,
+                        sender_type='customer'
+                    )
+                        
                     elif message_type == 'image':
                         # 画像の処理もここに統合
                         image_url = self.handle_image_message(event.get('message', {}).get('id'))
                         if image_url:
-                           LineMessage.objects.create(
-                               customer=customer,
-                               sender_type='customer',
-                               image_url=image_url
-                           )
+                            LineMessage.objects.create(
+                                customer=customer,
+                                image_url=image_url,
+                                sender_type='customer'
+                            )
         except Exception as e:
             print(f"Webhook処理中にエラーが発生しました: {e}")
             return HttpResponseBadRequest()
@@ -1126,13 +1127,20 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
             if message_text:
                 LineMessage.objects.create(
                     customer=customer,
-                    sender_type='admin',
-                    message=message_text
+                    message=message_text,
+                    sender_type='customer'
                 )
             
             # 3. 組み立てたメッセージを顧客に送信
             if messages_to_send:
                 send_line_push_message(customer.line_user_id, messages_to_send, token)
+
+            # データベースに保存
+            LineMessage.objects.create(
+                customer=customer,
+                image_url=image_url,
+                sender_type='customer'
+            )
 
             return Response({'status': 'メッセージを送信しました。'})
 
