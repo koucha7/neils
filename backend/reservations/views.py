@@ -11,6 +11,7 @@ from django.core.files.base import ContentFile
 from .authentication import CustomerJWTAuthentication
 from datetime import datetime, time, timedelta, date
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
+from google.auth import default as google_auth_default
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db.models import Q, Sum, Count
@@ -229,40 +230,37 @@ class ReservationViewSet(viewsets.ModelViewSet):
         return Response({"status": "reservation cancelled"})
     
     def add_event_to_google_calendar(self, reservation):
+        """Googleカレンダーに予約イベントを追加するヘルパーメソッド"""
         SCOPES = ['https://www.googleapis.com/auth/calendar']
-        SERVICE_ACCOUNT_FILE = 'google_credentials.json'
         CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 
         if not CALENDAR_ID:
-            print("Google Calendar ID not set.")
+            print("エラー: 環境変数 GOOGLE_CALENDAR_ID が設定されていません。")
             return
 
         try:
-            creds = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-        except (FileNotFoundError, GoogleAuthError) as e:
-            print(f"Could not load Google credentials: {e}")
-            return
+            # --- ここからが今回の修正の最重要ポイント ---
+            # ファイル名を直接指定するのではなく、環境変数から自動で認証情報を取得します。
+            # Render上では GOOGLE_APPLICATION_CREDENTIALS が参照されます。
+            credentials, project = google_auth_default(scopes=SCOPES)
             
-        service = build('calendar', 'v3', credentials=creds)
-        event = {
-            'summary': f"【予約】{reservation.customer.name}様",
-            'description': (
-                f"サービス: {reservation.service.name}\n"
-                f"予約番号: {reservation.reservation_number}\n"
-                f"連絡先: {reservation.customer.email or 'N/A'}"
-            ),
-            'start': {
-                'dateTime': reservation.start_time.isoformat(),
-                'timeZone': 'Asia/Tokyo',
-            },
-            'end': {
-                'dateTime': reservation.end_time.isoformat(),
-                'timeZone': 'Asia/Tokyo',
-            },
-        }
-        created_event = service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
-        print(f"Event created: {created_event.get('htmlLink')}")
+            service = build('calendar', 'v3', credentials=credentials)
+            
+            event = {
+                'summary': f"【予約】{reservation.customer.name}様",
+                'description': (
+                    f"サービス: {reservation.service.name}\n"
+                    f"予約番号: {reservation.reservation_number}\n"
+                    f"連絡先: {reservation.customer.email or 'メールアドレス未登録'}"
+                ),
+                'start': {'dateTime': reservation.start_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
+                'end': {'dateTime': reservation.end_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
+            }
+            service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+            print(f"成功: Googleカレンダーにイベントを登録しました (予約番号: {reservation.reservation_number})")
+        
+        except Exception as e:
+            print(f"エラー: Google認証またはAPI呼び出しに失敗しました。詳細: {e}")
     
 class NotificationSettingAPIView(APIView):
     """
