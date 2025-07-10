@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import base64
 import json
+import logging
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from .authentication import CustomerJWTAuthentication
@@ -38,6 +39,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .notifications import send_admin_line_image
 from rest_framework.parsers import MultiPartParser, JSONParser
 from django.db.models import Max, OuterRef, Subquery
+from linebot.models import TextSendMessage, ImageSendMessage
+from linebot import LineBotApi
+from google.cloud import storage
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
@@ -65,6 +69,8 @@ from .serializers import (
     AdminUserSerializer,
     LineMessageSerializer,
 )
+
+line_bot_api = LineBotApi(settings.LINE_CHANNEL_ACCESS_TOKEN)
 
 class SalonViewSet(viewsets.ModelViewSet):
     queryset = Salon.objects.all()
@@ -935,6 +941,11 @@ class LineWebhookView(APIView):
         text_message = f"【お客様からの画像】\n送信者: {customer_name}様"
         send_admin_line_notification(text_message)
         send_admin_line_image(image_url)
+        LineMessage.objects.create(
+            customer=CustomerSerializer,
+            image_url=image_url,
+            sender_type='customer'
+        )
         return image_url
 
 class AdminReservationViewSet(viewsets.ModelViewSet):
@@ -1046,6 +1057,8 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
         service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
         print(f"Googleカレンダーにイベントを登録しました: {reservation.reservation_number}")
 
+logger = logging.getLogger(__name__)
+
 class AdminCustomerViewSet(viewsets.ModelViewSet):
     """
     管理者用の顧客管理API。
@@ -1090,62 +1103,77 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
         serializer = LineMessageSerializer(messages, many=True)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['post'], url_path='send-message')
+    @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
-        """特定の顧客にLINEメッセージ（テキストまたは画像）を送信する"""
         customer = self.get_object()
-        if not customer.line_user_id:
-            return Response({'error': 'この顧客はLINE連携していません。'}, status=status.HTTP_400_BAD_REQUEST)
-
-        message_text = request.data.get('message', '')
+        text = request.data.get('text')
         image_file = request.FILES.get('image')
 
-        if not message_text and not image_file:
-            return Response({'error': 'メッセージまたは画像を指定してください。'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 顧客向けチャネルのアクセストークンを取得
-        token = os.environ.get('CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN')
-        if not token:
-            return Response({'error': '顧客向けLINEチャネルのトークンが設定されていません。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        try:
-            messages_to_send = []
-
-            # 1. 画像が添付されていた場合の処理
-            if image_file:
-                file_name = f"admin_sent/{uuid.uuid4()}.jpg"
-                file_path = default_storage.save(file_name, image_file)
-                image_url = default_storage.url(file_path)
-                
-                messages_to_send.append({
-                    "type": "image",
-                    "originalContentUrl": image_url,
-                    "previewImageUrl": image_url
-                })
-
-            # 2. テキストが入力されていた場合の処理
-            if message_text:
-                LineMessage.objects.create(
-                    customer=customer,
-                    message=message_text,
-                    sender_type='customer'
-                )
-            
-            # 3. 組み立てたメッセージを顧客に送信
-            if messages_to_send:
-                send_line_push_message(customer.line_user_id, messages_to_send, token)
-
-            # データベースに保存
-            LineMessage.objects.create(
-                customer=customer,
-                image_url=image_url,
-                sender_type='customer'
+        # メッセージも画像も無い場合はエラーレスポンスを返す
+        if not text and not image_file:
+            return Response(
+                {'error': '送信するテキストまたは画像を指定してください。'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-            return Response({'status': 'メッセージを送信しました。'})
+        try:
+            # 【テキストメッセージの処理】
+            # textフィールドに値がある場合のみ実行
+            if text:
+                # データベースにテキストメッセージを保存
+                LineMessage.objects.create(
+                    customer=customer,
+                    message_type='text',
+                    text=text,
+                    sender_type='admin'
+                )
+                # 顧客にLINEでテキストメッセージを送信
+                line_bot_api.push_message(
+                    customer.line_user_id,
+                    TextSendMessage(text=text)
+                )
+
+            # 【画像メッセージの処理】
+            # image_fileが添付されている場合のみ実行
+            if image_file:
+                # GCSへアップロード
+                storage_client = storage.Client()
+                # ★ご自身のGCSバケット名に変更してください
+                bucket = storage_client.bucket('YOUR_GCS_BUCKET_NAME') 
+                
+                file_name = f'{uuid.uuid4()}_{image_file.name}'
+                gcs_path = f'admin_images/{customer.id}/{file_name}'
+                blob = bucket.blob(gcs_path)
+                
+                blob.upload_from_file(image_file)
+                image_url = blob.public_url # 'image_url' はこのブロック内で作成
+
+                # データベースに画像メッセージを保存
+                LineMessage.objects.create(
+                    customer=customer,
+                    message_type='image',
+                    image_url=image_url, # 作成した 'image_url' を使用
+                    sender_type='admin'
+                )
+                
+                # 顧客にLINEで画像メッセージを送信
+                line_bot_api.push_message(
+                    customer.line_user_id,
+                    ImageSendMessage(
+                        original_content_url=image_url,
+                        preview_image_url=image_url
+                    )
+                )
+
+            return Response({'status': 'メッセージを送信しました。'}, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # エラーが発生した場合、ログに詳細を記録
+            logger.error(f"メッセージ送信に失敗しました: {e}", exc_info=True)
+            return Response(
+                {'error': f'サーバーでエラーが発生しました: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
