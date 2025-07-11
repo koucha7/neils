@@ -1138,8 +1138,7 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
             if image_file:
                 # GCSへアップロード
                 storage_client = storage.Client()
-                # ★ご自身のGCSバケット名に変更してください
-                bucket = storage_client.bucket('YOUR_GCS_BUCKET_NAME') 
+                bucket = storage_client.bucket('momonail-line-images') 
                 
                 file_name = f'{uuid.uuid4()}_{image_file.name}'
                 gcs_path = f'admin_images/{customer.id}/{file_name}'
@@ -1168,10 +1167,12 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
             return Response({'status': 'メッセージを送信しました。'}, status=status.HTTP_200_OK)
 
         except Exception as e:
-            # エラーが発生した場合、ログに詳細を記録
-            logger.error(f"メッセージ送信に失敗しました: {e}", exc_info=True)
+            # エラーの詳細をログに出力
+            logger.error(f"メッセージ送信中に予期せぬエラーが発生: {e}", exc_info=True)
+            
+            # クライアントには汎用的なエラーメッセージを返す
             return Response(
-                {'error': f'サーバーでエラーが発生しました: {str(e)}'},
+                {'error': 'サーバー内部でエラーが発生しました。詳細はサーバーログを確認してください。'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
