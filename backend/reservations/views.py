@@ -70,7 +70,7 @@ from .serializers import (
     LineMessageSerializer,
 )
 
-line_bot_api = LineBotApi(settings.LINE_CHANNEL_ACCESS_TOKEN)
+line_bot_api = LineBotApi(settings.ADMIN_LINE_CHANNEL_ACCESS_TOKEN)
 
 class SalonViewSet(viewsets.ModelViewSet):
     queryset = Salon.objects.all()
