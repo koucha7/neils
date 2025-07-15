@@ -15,6 +15,10 @@ router.register(r'reservations', views.ReservationViewSet, basename='reservation
 router.register(r'admin/users', views.AdminUserManagementViewSet, basename='admin-user')
 router.register(r'admin/reservations', views.AdminReservationViewSet, basename='admin-reservation')
 router.register(r'admin/customers', views.AdminCustomerViewSet, basename='admin-customer')
+print("--- DRF Router Registered URLs ---")
+for url in router.urls:
+    print(url)
+print("---------------------------------")
 
 # --- urlpatternsの定義 ---
 # ViewSetでは管理できない、個別のURLを持つAPIをここに定義します

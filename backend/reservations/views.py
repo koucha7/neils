@@ -1,3 +1,6 @@
+# backend/reservations/views.py
+
+# --- Standard Python Libraries ---
 import os
 import uuid
 import calendar
@@ -7,90 +10,83 @@ import hmac
 import base64
 import json
 import logging
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
-from .authentication import CustomerJWTAuthentication
 from datetime import datetime, time, timedelta, date
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
-from google.auth import default as google_auth_default
+from pathlib import Path
+
+# --- Django & DRF Core ---
 from django.conf import settings
-from django.core.mail import send_mail
-from django.db.models import Q, Sum, Count
 from django.contrib.auth.models import User
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.core.mail import send_mail
+from django.db.models import Q, Sum, Count, Max, OuterRef, Subquery
 from django.db.models.functions import TruncMonth, TruncDate
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework import status, viewsets, generics
+from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
+from rest_framework.parsers import MultiPartParser, JSONParser
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken
+
+# --- Google Cloud & LINE SDK ---
+from google.cloud import storage
+from google.auth import default as google_auth_default
 from google.auth.exceptions import GoogleAuthError
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from rest_framework import status, viewsets, generics
-from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser 
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-from dotenv import load_dotenv
-from pathlib import Path
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from .notifications import send_line_push_message, send_admin_line_notification
-from .line_utils import get_line_user_profile
-from rest_framework_simplejwt.tokens import RefreshToken
-from .notifications import send_admin_line_image
-from rest_framework.parsers import MultiPartParser, JSONParser
-from django.db.models import Max, OuterRef, Subquery
-from linebot.models import TextSendMessage, ImageSendMessage
 from linebot import LineBotApi
-from google.cloud import storage
+from linebot.models import TextSendMessage, ImageSendMessage
 
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
-
-DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
-
+# --- Local App Imports ---
+from .authentication import CustomerJWTAuthentication
+from .line_utils import get_line_user_profile
 from .models import (
-    NotificationSetting,
-    Reservation,
-    Salon,
-    Service,
-    Customer,
-    AvailableTimeSlot,
-    UserProfile,
-    LineMessage,
+    Salon, Service, Reservation, NotificationSetting, Customer, 
+    UserProfile, LineMessage, AvailableTimeSlot
 )
-
+from .notifications import send_line_push_message, send_admin_line_notification, send_admin_line_image
 from .serializers import (
-    NotificationSettingSerializer,
-    ReservationCreateSerializer,
-    ReservationSerializer,
-    SalonSerializer,
-    ServiceSerializer,
-    CustomerSerializer,
-    UserSerializer,
-    AdminUserSerializer,
-    LineMessageSerializer,
+    SalonSerializer, ServiceSerializer, ReservationSerializer, NotificationSettingSerializer,
+    CustomerSerializer, UserSerializer, AdminUserSerializer, LineMessageSerializer,
+    ReservationCreateSerializer
 )
 
+# --- Global Initializations ---
+logger = logging.getLogger(__name__)
 line_bot_api = LineBotApi(settings.ADMIN_LINE_CHANNEL_ACCESS_TOKEN)
 
+# ==============================================================================
+# Public-Facing ViewSets (No Authentication Required)
+# ==============================================================================
+
 class SalonViewSet(viewsets.ModelViewSet):
+    """サロン情報を取得するためのAPI"""
     queryset = Salon.objects.all()
     serializer_class = SalonSerializer
-    authentication_classes = []
     permission_classes = [AllowAny]
-
 
 class ServiceViewSet(viewsets.ModelViewSet):
+    """サービスメニューを取得するためのAPI"""
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
-    authentication_classes = []
     permission_classes = [AllowAny]
+
+# ==============================================================================
+# Customer-Facing Views (Customer Authentication Required)
+# ==============================================================================
+
 
 class ReservationViewSet(viewsets.ModelViewSet):
     """顧客向けの予約APIビューセット"""
     authentication_classes = [CustomerJWTAuthentication]
     permission_classes = [IsAuthenticated]
     queryset = Reservation.objects.all()
-    serializer_class = ReservationSerializer
     lookup_field = "reservation_number"
 
     def get_serializer_class(self):
@@ -99,50 +95,53 @@ class ReservationViewSet(viewsets.ModelViewSet):
         return ReservationSerializer
 
     def get_queryset(self):
-        """ログインしている顧客自身の予約のみを返すように修正"""
+        """ログインしている顧客自身の予約のみを返す"""
         customer = self.request.user
         if isinstance(customer, Customer):
             return super().get_queryset().filter(customer=customer)
         return Reservation.objects.none()
 
+    def perform_create(self, serializer):
+        """予約作成時に終了時刻を計算し、ログイン顧客と紐付けて保存する"""
+        service = serializer.validated_data.get('service')
+        start_time = serializer.validated_data.get('start_time')
+        duration = timedelta(minutes=service.duration_minutes)
+        end_time = start_time + duration
+        serializer.save(customer=self.request.user, end_time=end_time)
+
     def create(self, request, *args, **kwargs):
         """新しい予約を作成し、各種通知を行う"""
-        customer = self.request.user
+        customer = request.user
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        name = serializer.validated_data.get('customer_name')
-        furigana = serializer.validated_data.get('customer_furigana')
-        email = serializer.validated_data.get('customer_email')
-        phone = serializer.validated_data.get('customer_phone')
-
-        # 顧客情報を更新
-        if name: customer.name = name
-        if furigana: customer.furigana = furigana
-        if email: customer.email = email
-        if phone: customer.phone_number = phone
-        customer.save()
-        self.perform_create(serializer)
         
-        # --- ここから通知処理 ---
+        # 顧客情報をフォーム内容で更新
+        customer.name = serializer.validated_data.get('customer_name', customer.name)
+        customer.furigana = serializer.validated_data.get('customer_furigana', customer.furigana)
+        customer.email = serializer.validated_data.get('customer_email', customer.email)
+        customer.phone_number = serializer.validated_data.get('customer_phone', customer.phone_number)
+        customer.save()
+        
+        self.perform_create(serializer)
         reservation = serializer.instance
+
+        # --- 通知処理 ---
         try:
-            # (管理者へのLINE通知)
-            message = (
+            admin_message = (
                 f"新しい予約が入りました！\n\n"
                 f"予約番号: {reservation.reservation_number}\n"
                 f"お名前: {reservation.customer.name}様\n"
                 f"日時: {reservation.start_time.strftime('%Y-%m-%d %H:%M')}\n"
                 f"サービス: {reservation.service.name}"
             )
-            send_admin_line_notification(message)
+            send_admin_line_notification(admin_message)
         except Exception as e:
-            print(f"管理者へのLINE通知に失敗しました: {e}")
+            logger.error(f"管理者へのLINE通知に失敗しました: {e}")
 
         try:
-            # (顧客への予約受付メール)
             if reservation.customer.email:
                 subject = "【MomoNail】ご予約ありがとうございます（お申込内容の確認）"
-                message = (
+                customer_message = (
                     f"{reservation.customer.name}様\n\n"
                     f"この度は、MomoNailにご予約いただき、誠にありがとうございます。\n"
                     f"以下の内容でご予約を承りました。ネイリストが内容を確認後、改めて「予約確定メール」をお送りしますので、今しばらくお待ちください。\n\n"
@@ -153,87 +152,20 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     f"------------------"
                 )
                 from_email = os.environ.get("DEFAULT_FROM_EMAIL")
-                send_mail(subject, message, from_email, [reservation.customer.email])
+                send_mail(subject, customer_message, from_email, [reservation.customer.email])
         except Exception as e:
-            print(f"予約受付メールの送信に失敗しました: {e}")
+            logger.error(f"予約受付メールの送信に失敗しました: {e}")
 
-        response_serializer = ReservationSerializer(serializer.instance)
-        headers = self.get_success_headers(serializer.data)
+        response_serializer = ReservationSerializer(reservation)
+        headers = self.get_success_headers(response_serializer.data)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-    def perform_create(self, serializer):
-        """
-        予約作成時に終了時刻を計算し、ログイン顧客と紐付けて保存する。
-        """
-        # 1. 予約されたサービスと開始時刻を取得
-        service = serializer.validated_data.get('service')
-        start_time = serializer.validated_data.get('start_time')
-
-        # 2. サービスの所要時間から終了時刻を計算
-        duration = timedelta(minutes=service.duration_minutes)
-        end_time = start_time + duration
-        
-        # 3. ログイン中の顧客情報と、計算した終了時刻を渡して保存
-        serializer.save(customer=self.request.user, end_time=end_time)
-
-        
-    
-    @action(detail=True, methods=['post'])
-    def confirm(self, request, reservation_number=None):
-        """
-        予約を確定済みに更新し、各種通知を送信するカスタムアクション
-        """
-        reservation = self.get_object()
-        
-        if reservation.status != 'pending':
-            return Response(
-                {'error': 'この予約は保留中でないため、確定できません。'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        # ステータスを更新して保存
-        reservation.status = 'confirmed'
-        reservation.save()
-        
-        # --- ここから通知処理 ---
-
-        # 1. 予約確定メールをお客様に送信
-        try:
-            subject = f"【MomoNail】ご予約が確定いたしました"
-            message = (
-                f"{reservation.customer.name}様\n\n"
-                f"お申し込みいただいた以下の内容で、ご予約が確定いたしました。\n"
-                f"ご来店を心よりお待ちしております。\n\n"
-                f"--- ご予約内容 ---\n"
-                f"予約番号: {reservation.reservation_number}\n"
-                f"日時: {reservation.start_time.strftime('%Y年%m月%d日 %H:%M')}\n"
-                f"サービス: {reservation.service.name}\n"
-                f"ご予約内容の確認・キャンセルは、以下のページからも行えます。\n"
-                f"https://momonail-frontend.onrender.com/check\n\n"
-                f"MomoNail"
-            )
-            from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@momonail.com")
-            recipient_list = [reservation.customer.email]
-            send_mail(subject, message, from_email, recipient_list)
-        except Exception as e:
-            print(f"Failed to send reservation confirmed email: {e}")
-            
-        # 2. Googleカレンダーにイベントを追加
-        try:
-            self.add_event_to_google_calendar(reservation)
-        except Exception as e:
-            print(f"Google Calendar event creation failed after confirmation: {e}")
-
-        return Response({'status': 'reservation confirmed'})
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, reservation_number=None):
+        """予約をキャンセル済みに更新する"""
         reservation = self.get_object()
         if reservation.status in ["completed", "cancelled"]:
-            return Response(
-                {"error": "この予約は完了またはキャンセル済みのため、変更できません。"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"error": "この予約は完了またはキャンセル済みのため、変更できません。"}, status=status.HTTP_400_BAD_REQUEST)
         
         reservation.status = "cancelled"
         reservation.save()
@@ -249,7 +181,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
             return
 
         try:
-            # --- ここからが今回の修正の最重要ポイント ---
             # ファイル名を直接指定するのではなく、環境変数から自動で認証情報を取得します。
             # Render上では GOOGLE_APPLICATION_CREDENTIALS が参照されます。
             credentials, project = google_auth_default(scopes=SCOPES)
@@ -546,69 +477,28 @@ class MyReservationsView(APIView):
         serializer = ReservationSerializer(reservations, many=True)
         return Response(serializer.data)
 
-@method_decorator(csrf_exempt, name='dispatch')
 class LineLoginCallbackView(APIView):
-    # このAPIは認証不要でアクセスできるようにする
-    authentication_classes = []
+    """顧客のLINEログインコールバックを処理する"""
     permission_classes = [AllowAny]
-
+    
     def post(self, request, *args, **kwargs):
         code = request.data.get('code')
         if not code:
             return Response({'error': 'Code not provided'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # 1. LINE Platform APIとの通信
+        
         try:
-            token_url = 'https://api.line.me/oauth2/v2.1/token'
-            client_id = os.environ.get('LINE_CHANNEL_ID')
-            client_secret = os.environ.get('LINE_CHANNEL_SECRET')
-            redirect_uri = os.environ.get('LINE_REDIRECT_URI')
-
-            token_payload = {
-                'grant_type': 'authorization_code',
-                'code': code,
-                'redirect_uri': redirect_uri,
-                'client_id': client_id,
-                'client_secret': client_secret,
-            }
-            token_response = requests.post(token_url, data=token_payload)
-            token_response.raise_for_status()
-            id_token = token_response.json().get('id_token')
-
-            verify_url = 'https://api.line.me/oauth2/v2.1/verify'
-            verify_payload = {'id_token': id_token, 'client_id': client_id}
-            verify_response = requests.post(verify_url, data=verify_payload)
-            verify_response.raise_for_status()
+            line_profile = get_line_user_profile(code, flow_type='customer')
+            line_user_id = line_profile.get('sub')
             
-            profile = verify_response.json()
-            line_user_id = profile.get('sub')
-            display_name = profile.get('name')
-            picture_url = profile.get('picture')
-
-        except requests.exceptions.RequestException as e:
-            return Response({'error': 'Failed to communicate with LINE API.', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        # 2. 顧客情報の取得または新規作成
-        try:
-            # line_user_idをキーに顧客情報を取得または作成
-            customer, created = Customer.objects.update_or_create(
+            customer, _ = Customer.objects.update_or_create(
                 line_user_id=line_user_id,
-                # 新規作成の場合のデフォルト値を設定
                 defaults={
-                    'line_display_name': display_name,
-                    'line_picture_url': picture_url,
+                    'line_display_name': line_profile.get('name'),
+                    'line_picture_url': line_profile.get('picture'),
+                    'name': Customer._meta.get_field('name').get_default() # 新規作成時のみデフォルト名
                 }
             )
-
-            # 既存顧客の場合、LINEの情報で更新 (手動で設定した名前は上書きしない)
-            if not created:
-                customer.line_display_name = display_name
-                customer.line_picture_url = picture_url
-                customer.save(update_fields=['line_display_name', 'line_picture_url'])
             
-            # --- JWT生成処理 ---
-            # カスタム認証に合わせてペイロードを直接設定
-            print(f"DEBUG (LineLoginCallbackView): SECRET_KEY = {settings.SECRET_KEY}") # ★追加
             refresh = RefreshToken()
             refresh['line_user_id'] = customer.line_user_id
             
@@ -616,27 +506,24 @@ class LineLoginCallbackView(APIView):
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
             }, status=status.HTTP_200_OK)
-
+            
         except Exception as e:
-            # エラーログをより詳細に出力
-            import traceback
-            traceback.print_exc()
-            return Response({'error': 'An unexpected error occurred.', 'details': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"LINEログインコールバックエラー: {e}", exc_info=True)
+            return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @authentication_classes([CustomerJWTAuthentication])
 @permission_classes([IsAuthenticated])
 def me(request):
-    """
-    現在認証されているユーザー（顧客）の情報を返す。
-    """
-    # このビューは顧客認証専用なので、request.userは常にCustomerオブジェクトです
+    """現在認証されている顧客の情報を返す"""
     if isinstance(request.user, Customer):
         serializer = CustomerSerializer(request.user)
         return Response(serializer.data)
-
-    # 万が一、顧客として認証できなかった場合
     return Response({"error": "顧客として認証されていません。"}, status=status.HTTP_401_UNAUTHORIZED)
+
+# ==============================================================================
+# Admin-Facing ViewSets (Admin Authentication Required)
+# ==============================================================================
   
 @api_view(['POST'])
 @authentication_classes([CustomerJWTAuthentication])
@@ -661,51 +548,30 @@ def confirm_reservation_and_notify(request):
         return Response({"message": "予約が見つからなかったため、その旨をLINEで通知しました。"}, status=status.HTTP_404_NOT_FOUND)
     
 class AdminUserManagementViewSet(viewsets.ModelViewSet):
-    """
-    管理者が他の管理者ユーザーを作成・管理するためのAPI
-    """
-    # is_staff=True のユーザー（管理者）のみを対象とする
+    """管理者が他の管理者ユーザーを作成・管理するためのAPI"""
     queryset = User.objects.filter(is_staff=True)
     serializer_class = AdminUserSerializer
-    # このAPIは、Django標準のJWT認証（ユーザー名とパスワード）を使用
     authentication_classes = [JWTAuthentication]
-    # DjangoのIsAdminUser権限（is_staff=Trueのユーザーのみ許可）を設定
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def perform_create(self, serializer):
-        """
-        新しい管理者ユーザーを作成する際の追加処理
-        """
-        # リクエストからパスワードを取得
+        """新しい管理者ユーザーを作成する際の追加処理"""
         password = self.request.data.get('password')
-        # is_staff=True でユーザーを作成
         user = serializer.save(is_staff=True)
-        
         if password:
             user.set_password(password)
             user.save()
-        
-        # 同時にUserProfileも作成
-        UserProfile.objects.create(user=user)
+        UserProfile.objects.get_or_create(user=user)
 
     @action(detail=True, methods=['post'], url_path='generate-line-link')
     def generate_line_link(self, request, pk=None):
-        """
-        指定された管理者ユーザーのLINE連携用リンクを生成する
-        """
+        """指定された管理者ユーザーのLINE連携用リンクを生成する"""
         user = self.get_object()
-        # ユーザーに紐づくUserProfileを取得、なければ作成
-        profile, created = UserProfile.objects.get_or_create(user=user)
-        
-        # 新しい登録トークンを生成して保存
+        profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.line_registration_token = uuid.uuid4()
         profile.save()
-        
-        # フロントエンドの管理者用登録ページのURLを生成
-        # 例: https://momonail-admin.onrender.com/register-line/xxxxxxxx-xxxx...
-        base_url = os.environ.get('FRONTEND_ADMIN_URL', 'http://localhost:5173') # 環境変数がなければローカルを指す
+        base_url = os.environ.get('FRONTEND_ADMIN_URL', 'http://localhost:5173')
         registration_url = f"{base_url}/register-line/{profile.line_registration_token}"
-        
         return Response({'registration_link': registration_url})
     
 class AdminUserViewSet(viewsets.ModelViewSet):
@@ -849,117 +715,90 @@ class AdminLineLoginView(APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LineWebhookView(APIView):
-    authentication_classes = []
+    """LINEプラットフォームからのWebhookを受け取る"""
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        # ... (署名検証のロジックは変更なし) ...
-
+        # ... (署名検証は本番環境で重要です) ...
         try:
-            events = json.loads(request.body.decode('utf-8')).get('events', [])
+            body = request.body.decode('utf-8')
+            events = json.loads(body).get('events', [])
+            
             for event in events:
                 if event.get('type') == 'message':
-                    source = event.get('source', {})
-                    message = event.get('message', {})
-                    line_user_id = source.get('userId')
-                    message_type = message.get('type')
+                    self.handle_message_event(event)
 
-                    if not line_user_id:
-                        continue
-
-                    # --- 顧客情報の取得 ---
-                    try:
-                        customer = Customer.objects.get(line_user_id=line_user_id)
-                        customer_name = customer.name or "名前未登録"
-                    except Customer.DoesNotExist:
-                        customer_name = "新規のお客様"
-
-                    # --- テキストメッセージの処理 ---
-                    if message_type == 'text':
-                        message_text = message.get('text')
-                        forward_message = (
-                            f"【お客様からのメッセージ】\n"
-                            f"送信者: {customer_name}様\n\n"
-                            f"{message_text}"
-                        )
-                        send_admin_line_notification(forward_message)
-
-                    elif message_type == 'image':
-                        self.handle_image_message(line_user_id, customer_name, message.get('id'))
-
-                    # ★ メッセージをDBに保存
-                    message_type = event.get('message', {}).get('type')
-                    if message_type == 'text':
-                        LineMessage.objects.create(
-                        customer=customer,
-                        message=message_text,
-                        sender_type='customer'
-                    )
-                        
-                    elif message_type == 'image':
-                        # 画像の処理もここに統合
-                        image_url = self.handle_image_message(event.get('message', {}).get('id'))
-                        if image_url:
-                            LineMessage.objects.create(
-                                customer=customer,
-                                image_url=image_url,
-                                sender_type='customer'
-                            )
         except Exception as e:
-            print(f"Webhook処理中にエラーが発生しました: {e}")
+            logger.error(f"Webhook処理中にエラー: {e}", exc_info=True)
             return HttpResponseBadRequest()
-
         return HttpResponse(status=200)
 
-    def handle_image_message(self, line_user_id, customer_name, message_id):
-        """画像メッセージを処理してGCSにアップロードし、管理者に転送する"""
-        channel_access_token = os.environ.get('CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN')
-        if not channel_access_token:
-            print("エラー: 顧客向けチャネルアクセストークンが設定されていません。")
+    def handle_message_event(self, event):
+        """メッセージイベントを種類別に処理する"""
+        source = event.get('source', {})
+        message = event.get('message', {})
+        line_user_id = source.get('userId')
+        message_type = message.get('type')
+
+        if not line_user_id:
             return
 
-        # 1. LINEサーバーから画像をダウンロード
-        content_url = f"https://api-data.line.me/v2/bot/message/{message_id}/content"
-        headers = {'Authorization': f'Bearer {channel_access_token}'}
-        try:
-            response = requests.get(content_url, headers=headers, stream=True)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            print(f"LINEからの画像ダウンロードに失敗: {e}")
-            return
-
-        # 2. GCSに画像を保存 (django-storagesが自動で処理)
-        file_name = f"line_images/{uuid.uuid4()}.jpg"
-        file_path = default_storage.save(file_name, ContentFile(response.content))
-
-        # 3. GCS上の公開URLを取得
-        image_url = default_storage.url(file_path)
-
-        print(f"GCSに保存完了。転送する画像URL: {image_url}")
-
-        # 4. 管理者にテキストと画像を転送
-        text_message = f"【お客様からの画像】\n送信者: {customer_name}様"
-        send_admin_line_notification(text_message)
-        send_admin_line_image(image_url)
-        LineMessage.objects.create(
-            customer=CustomerSerializer,
-            image_url=image_url,
-            sender_type='customer'
+        # 顧客を取得または新規作成
+        customer, created = Customer.objects.get_or_create(
+            line_user_id=line_user_id,
+            defaults={'name': '新規のお客様'} # 仮の名前
         )
-        return image_url
+        if created:
+            logger.info(f"新規顧客を作成しました: {line_user_id}")
+
+        # メッセージタイプに応じて処理
+        if message_type == 'text':
+            text = message.get('text')
+            LineMessage.objects.create(customer=customer, text=text, sender_type='customer', message_type='text')
+            admin_notification = f"【お客様からのメッセージ】\n送信者: {customer.name}\n\n{text}"
+            send_admin_line_notification(admin_notification)
+
+        elif message_type == 'image':
+            message_id = message.get('id')
+            self.handle_image_message(customer, message_id)
+
+    def handle_image_message(self, customer, message_id):
+        """画像メッセージをGCSに保存し、管理者に転送する"""
+        try:
+            # LINEサーバーから画像コンテンツを取得
+            message_content = line_bot_api.get_message_content(message_id)
+            
+            # GCSにアップロード
+            storage_client = storage.Client()
+            bucket = storage_client.bucket('momonail-line-images') # ★ご自身のGCSバケット名
+            file_name = f'customer_sent/{uuid.uuid4()}.jpg'
+            blob = bucket.blob(file_name)
+            
+            # ストリームから直接アップロード
+            blob.upload_from_string(message_content.content, content_type='image/jpeg')
+            image_url = blob.public_url
+
+            # DBに保存
+            LineMessage.objects.create(customer=customer, image_url=image_url, sender_type='customer', message_type='image')
+            
+            # 管理者に通知
+            admin_text = f"【お客様からの画像】\n送信者: {customer.name}"
+            send_admin_line_notification(admin_text)
+            send_admin_line_image(image_url)
+
+        except Exception as e:
+            logger.error(f"画像メッセージの処理に失敗: {e}", exc_info=True)
 
 class AdminReservationViewSet(viewsets.ModelViewSet):
-    """
-    管理者用の予約管理APIビューセット。
-    """
+    """管理者用の予約管理API"""
     serializer_class = ReservationSerializer
-    queryset = Reservation.objects.all().order_by('start_time')
+    queryset = Reservation.objects.all().order_by('-start_time')
     lookup_field = 'reservation_number'
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get_queryset(self):
-        # (このメソッドに変更はありません)
+        """日付やステータスで予約をフィルタリングする"""
         queryset = super().get_queryset()
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
@@ -974,13 +813,10 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='confirm')
     def confirm(self, request, reservation_number=None):
-        """予約を「確定済み」に更新し、各種通知を送信するアクション"""
+        """予約を「確定済み」に更新し、通知を送信する"""
         reservation = self.get_object()
         if reservation.status != 'pending':
-            return Response(
-                {'error': 'この予約は保留中でないため、確定できません。'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'この予約は保留中でないため、確定できません。'}, status=status.HTTP_400_BAD_REQUEST)
         
         reservation.status = 'confirmed'
         reservation.save()
@@ -988,7 +824,7 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
         # --- 通知処理 ---
         try:
             if reservation.customer and reservation.customer.email:
-                subject = f"【MomoNail】ご予約が確定いたしました"
+                subject = "【MomoNail】ご予約が確定いたしました"
                 message = (
                     f"{reservation.customer.name}様\n\n"
                     f"お申し込みいただいた内容でご予約が確定いたしました。\n"
@@ -1001,78 +837,61 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                 from_email = os.environ.get("DEFAULT_FROM_EMAIL")
                 send_mail(subject, message, from_email, [reservation.customer.email])
         except Exception as e:
-            print(f"予約確定メールの送信に失敗しました: {e}")
+            logger.error(f"予約確定メールの送信に失敗しました: {e}")
 
         try:
-            # self を付けてクラス内のメソッドとして呼び出します
             self.add_event_to_google_calendar(reservation)
         except Exception as e:
-            print(f"Googleカレンダーへの登録に失敗しました: {e}")
+            logger.error(f"Googleカレンダーへの登録に失敗しました: {e}")
         
         return Response({'status': 'reservation confirmed'})
 
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel(self, request, reservation_number=None):
-        # (このメソッドに変更はありません)
+        """予約をキャンセル済みに更新する"""
         reservation = self.get_object()
         if reservation.status in ['completed', 'cancelled']:
-            return Response(
-                {'error': 'この予約は完了またはキャンセル済みのため、変更できません。'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'この予約は完了またはキャンセル済みのため、変更できません。'}, status=status.HTTP_400_BAD_REQUEST)
+        
         reservation.status = 'cancelled'
         reservation.save()
+        # TODO: Google Calendar event deletion
         return Response({'status': 'reservation cancelled'})
 
-    # このメソッドが、confirmやcancelと同じインデント（階層）で
-    # クラス内に正しく定義されていることを確認してください。
     def add_event_to_google_calendar(self, reservation):
-        """Googleカレンダーに予約イベントを追加するヘルパーメソッド"""
-        SCOPES = ['https://www.googleapis.com/auth/calendar']
-        SERVICE_ACCOUNT_FILE = 'google_credentials.json'
+        """Googleカレンダーに予約イベントを追加する"""
         CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
-
         if not CALENDAR_ID:
-            print("環境変数 GOOGLE_CALENDAR_ID が設定されていません。")
+            logger.warning("環境変数 GOOGLE_CALENDAR_ID が設定されていません。")
             return
 
         try:
-            creds = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-        except Exception as e:
-            print(f"Google認証情報の読み込みに失敗しました: {e}")
-            return
+            credentials, _ = google_auth_default(scopes=['https://www.googleapis.com/auth/calendar'])
+            service = build('calendar', 'v3', credentials=credentials)
             
-        service = build('calendar', 'v3', credentials=creds)
-        event = {
-            'summary': f"【予約】{reservation.customer.name}様",
-            'description': (
-                f"サービス: {reservation.service.name}\n"
-                f"予約番号: {reservation.reservation_number}\n"
-                f"連絡先: {reservation.customer.email or 'メールアドレス未登録'}"
-            ),
-            'start': {'dateTime': reservation.start_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
-            'end': {'dateTime': reservation.end_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
-        }
-        service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
-        print(f"Googleカレンダーにイベントを登録しました: {reservation.reservation_number}")
+            event = {
+                'summary': f"【予約】{reservation.customer.name}様 ({reservation.service.name})",
+                'description': f"予約番号: {reservation.reservation_number}\n連絡先: {reservation.customer.email or 'N/A'}",
+                'start': {'dateTime': reservation.start_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
+                'end': {'dateTime': reservation.end_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
+            }
+            service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+            logger.info(f"Googleカレンダーにイベントを登録しました (予約番号: {reservation.reservation_number})")
+        except Exception as e:
+            logger.error(f"Google認証またはAPI呼び出しに失敗しました。詳細: {e}", exc_info=True)
 
 logger = logging.getLogger(__name__)
 
 class AdminCustomerViewSet(viewsets.ModelViewSet):
-    """
-    管理者用の顧客管理API。
-    一覧、詳細、更新、予約履歴、メッセージ送信を扱う。
-    """
+    """管理者用の顧客管理API"""
     queryset = Customer.objects.all().order_by('-created_at')
     serializer_class = CustomerSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsAdminUser]
-    # ★ parser_classesを追加して、ファイルとJSONの両方を受け取れるようにする
     parser_classes = [MultiPartParser, JSONParser]
 
     def get_queryset(self):
-        """名前、メール、電話番号で顧客を検索する機能"""
+        """名前、メール、電話番号で顧客を検索する"""
         queryset = super().get_queryset()
         name = self.request.query_params.get('name')
         email = self.request.query_params.get('email')
@@ -1089,7 +908,7 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def reservations(self, request, pk=None):
-        """特定の顧客の予約履歴を返すアクション"""
+        """特定の顧客の予約履歴を返す"""
         customer = self.get_object()
         reservations = Reservation.objects.filter(customer=customer).order_by('-start_time')
         serializer = ReservationSerializer(reservations, many=True)
@@ -1105,124 +924,79 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
+        """特定の顧客にLINEでメッセージや画像を送信する"""
         customer = self.get_object()
         text = request.data.get('text')
         image_file = request.FILES.get('image')
 
-        # メッセージも画像も無い場合はエラーレスポンスを返す
         if not text and not image_file:
-            return Response(
-                {'error': '送信するテキストまたは画像を指定してください。'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '送信するテキストまたは画像を指定してください。'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # 【テキストメッセージの処理】
-            # textフィールドに値がある場合のみ実行
             if text:
-                # データベースにテキストメッセージを保存
+                line_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
                 LineMessage.objects.create(
-                    customer=customer,
-                    message_type='text',
-                    text=text,
-                    sender_type='admin'
-                )
-                # 顧客にLINEでテキストメッセージを送信
-                line_bot_api.push_message(
-                    customer.line_user_id,
-                    TextSendMessage(text=text)
+                    customer=customer, message_type='text', text=text, sender_type='admin'
                 )
 
-            # 【画像メッセージの処理】
-            # image_fileが添付されている場合のみ実行
             if image_file:
-                # GCSへアップロード
                 storage_client = storage.Client()
-                bucket = storage_client.bucket('momonail-line-images') 
+                bucket = storage_client.bucket('momonail-line-images') # ★ご自身のGCSバケット名
                 
-                file_name = f'{uuid.uuid4()}_{image_file.name}'
-                gcs_path = f'admin_images/{customer.id}/{file_name}'
-                blob = bucket.blob(gcs_path)
+                file_name = f'admin_sent/{uuid.uuid4()}_{image_file.name}'
+                blob = bucket.blob(file_name)
                 
                 blob.upload_from_file(image_file)
-                image_url = blob.public_url # 'image_url' はこのブロック内で作成
+                image_url = blob.public_url
 
-                # データベースに画像メッセージを保存
-                LineMessage.objects.create(
-                    customer=customer,
-                    message_type='image',
-                    image_url=image_url, # 作成した 'image_url' を使用
-                    sender_type='admin'
-                )
-                
-                # 顧客にLINEで画像メッセージを送信
                 line_bot_api.push_message(
                     customer.line_user_id,
-                    ImageSendMessage(
-                        original_content_url=image_url,
-                        preview_image_url=image_url
-                    )
+                    ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
+                )
+                LineMessage.objects.create(
+                    customer=customer, message_type='image', image_url=image_url, sender_type='admin'
                 )
 
             return Response({'status': 'メッセージを送信しました。'}, status=status.HTTP_200_OK)
 
         except Exception as e:
-            # エラーの詳細をログに出力
             logger.error(f"メッセージ送信中に予期せぬエラーが発生: {e}", exc_info=True)
-            
-            # クライアントには汎用的なエラーメッセージを返す
-            return Response(
-                {'error': 'サーバー内部でエラーが発生しました。詳細はサーバーログを確認してください。'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'error': 'サーバー内部でエラーが発生しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated, IsAdminUser])
 def admin_me(request):
-    """
-    現在認証されている管理者ユーザーの情報を返す。
-    トークンが無効な場合は401エラーが自動的に返される。
-    """
+    """現在認証されている管理者ユーザーの情報を返す"""
     serializer = AdminUserSerializer(request.user)
     return Response(serializer.data)
 
+# ==============================================================================
+# Other Standalone APIViews
+# ==============================================================================
+
 class LineMessageHistoryView(generics.ListAPIView):
-    """
-    管理者向けのLINEメッセージ履歴API。
-    顧客、日付、本文での検索機能を持つ。
-    """
+    """管理者向けのLINEメッセージ履歴API"""
     serializer_class = LineMessageSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get_queryset(self):
         queryset = LineMessage.objects.select_related('customer').order_by('-sent_at')
-
-        # --- 検索パラメータの取得 ---
         customer_id = self.request.query_params.get('customer_id')
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         query = self.request.query_params.get('query')
 
-        # --- フィルタリング ---
         if customer_id:
             queryset = queryset.filter(customer__id=customer_id)
-        
         if start_date:
             queryset = queryset.filter(sent_at__date__gte=start_date)
-
         if end_date:
             queryset = queryset.filter(sent_at__date__lte=end_date)
-            
         if query:
-            # 本文、顧客名、フリガナ、メール、電話番号から横断的に検索
             queryset = queryset.filter(
-                Q(message__icontains=query) |
-                Q(customer__name__icontains=query) |
-                Q(customer__furigana__icontains=query) |
-                Q(customer__email__icontains=query) |
-                Q(customer__phone_number__icontains=query)
+                Q(text__icontains=query) | Q(customer__name__icontains=query)
             )
-
         return queryset
