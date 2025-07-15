@@ -110,7 +110,6 @@ const AdminPanel: React.FC = () => {
           {isSidebarOpen ? <X size={24} /> : <MenuIcon size={24} />}
         </button>
         
-        {/* ★ 6. ネストされたRoutesでコンテンツを切り替える（最重要） */}
         <Routes>
           <Route path="/" element={<ReservationList />} />
           <Route path="reservations" element={<ReservationList />} />
@@ -125,7 +124,8 @@ const AdminPanel: React.FC = () => {
           <Route path="customers/:customerId/line" element={<SendLineMessage />} />
           <Route path="users/:userId" element={<AdminUserDetail />} />
           <Route path="users/new" element={<AdminUserCreate />} />
-            <Route path="line-history" element={<LineHistoryPage />} />
+          <Route path="line-history" element={<LineHistoryPage />} />
+          <Route path="customers/:customerId/history" element={<LineHistoryPage />} />
         </Routes>
       </main>
     </div>

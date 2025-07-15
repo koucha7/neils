@@ -15,11 +15,11 @@ router.register(r'reservations', views.ReservationViewSet, basename='reservation
 router.register(r'admin/users', views.AdminUserManagementViewSet, basename='admin-user')
 router.register(r'admin/reservations', views.AdminReservationViewSet, basename='admin-reservation')
 router.register(r'admin/customers', views.AdminCustomerViewSet, basename='admin-customer')
-print("--- DRF Router Registered URLs ---")
+""" print("--- DRF Router Registered URLs ---")
 for url in router.urls:
     print(url)
 print("---------------------------------")
-
+ """
 # --- urlpatternsの定義 ---
 # ViewSetでは管理できない、個別のURLを持つAPIをここに定義します
 urlpatterns = [
@@ -27,6 +27,7 @@ urlpatterns = [
     path('', include(router.urls)),
 
     # 以下は、ViewSetではないAPIViewや関数ベースビューのパスです
+    path('admin/customers/<int:pk>/send-message/', views.AdminCustomerViewSet.as_view({'post': 'send_message'}), name='admin-customer-send-message'),
     path('config/notifications/', views.NotificationSettingAPIView.as_view(), name='notification-setting'),
     path('availability/', views.AvailabilityCheckAPIView.as_view(), name='availability-check'),
     path('health-check/', views.HealthCheckAPIView.as_view(), name='health-check'),

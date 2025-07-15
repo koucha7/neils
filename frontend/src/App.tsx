@@ -16,6 +16,7 @@ import Manual from './components/customer/Manual';
 import ConfirmReservation from './components/customer/ConfirmReservation';
 import AdminLineRegistration from './components/admin/AdminLineRegistration';
 import AdminLineCallback from './components/admin/AdminLineCallback';
+import LineHistoryPage from "./components/admin/LineHistoryPage";
 
 // 管理者向け
 import AdminPanel from './components/admin/AdminPanel';
@@ -51,6 +52,7 @@ function App() {
             <Route path="/login-failed" element={<LoginFailed />} />
             <Route path="/manual" element={<Manual />} />
             <Route path="/confirm-reservation" element={<ConfirmReservation />} />
+            <Route path="customers/:customerId/history" element={<LineHistoryPage />} />
             
             {/* --- 管理者向けページのルーティング --- */}
             <Route path="/admin/*" element={<AdminPanel />} />

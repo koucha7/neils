@@ -56,6 +56,11 @@ api.interceptors.request.use(
       }
     }
 
+    // FormData の場合は Content-Type を axios に任せる
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+
     return config;
   },
   (error) => {

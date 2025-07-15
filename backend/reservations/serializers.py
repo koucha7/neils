@@ -129,7 +129,7 @@ class LineMessageSerializer(serializers.ModelSerializer):
             'customer_name', 
             'customer_line_picture_url',
             'sender_type', 
-            'text', # 以前の定義から抜けていたため'message'から'text'に修正
+            'message',
             'image_url', 
             'sent_at'
         ]

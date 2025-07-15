@@ -1,125 +1,160 @@
-// frontend/src/components/admin/CustomerDetail.tsx
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axiosConfig';
-import { format } from 'date-fns';
-import { ArrowLeft } from 'lucide-react';
-import { MessageSquare, FileText, History } from 'lucide-react';
-import { User } from 'lucide-react';
+import { ArrowLeft, Edit, MessageSquare, Clock } from 'lucide-react';
 
 // 型定義
-interface Customer { id: number; name: string; email: string | null; phone_number: string | null; 
-  line_display_name: string | null;
-  line_picture_url: string | null;}
-interface Reservation { id: number; reservation_number: string; start_time: string; status: string; service_name: string; }
+interface Customer {
+  id: number;
+  name: string;
+  furigana: string;
+  email: string;
+  phone_number: string;
+  memo: string;
+  created_at: string;
+}
+
+interface Reservation {
+  reservation_number: string;
+  start_time: string;
+  service_name: string;
+  status: string;
+}
 
 const CustomerDetail: React.FC = () => {
   const { customerId } = useParams<{ customerId: string }>();
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
   const navigate = useNavigate();
 
-  const fetchCustomerDetails = useCallback(async () => {
-    if (!customerId) return;
-    try {
-      // 顧客の基本情報を取得
-      const customerRes = await api.get(`/api/admin/customers/${customerId}/`);
-      setCustomer(customerRes.data);
-      // 顧客の予約履歴を取得
-      const reservationsRes = await api.get(`/api/admin/customers/${customerId}/reservations/`);
-      setReservations(reservationsRes.data);
-    } catch (error) {
-      console.error("顧客詳細の取得に失敗しました:", error);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCustomerDetails = async () => {
+      setIsLoading(true);
+      try {
+        // 顧客情報の取得
+        const customerResponse = await api.get(`/api/admin/customers/${customerId}/`);
+        setCustomer(customerResponse.data);
+
+        // 予約履歴の取得
+        const reservationsResponse = await api.get(`/api/admin/customers/${customerId}/reservations/`);
+        setReservations(reservationsResponse.data);
+        
+        setError(null);
+      } catch (err) {
+        console.error("顧客詳細の取得に失敗しました:", err);
+        setError("データの取得に失敗しました。ページを再読み込みしてください。");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (customerId) {
+      fetchCustomerDetails();
     }
   }, [customerId]);
 
-  useEffect(() => {
-    fetchCustomerDetails();
-  }, [fetchCustomerDetails]);
+  if (isLoading) {
+    return <div className="text-center p-10">読み込み中...</div>;
+  }
 
-  if (!customer) return <div>読み込み中...</div>;
+  if (error) {
+    return <div className="text-center p-10 text-red-500">{error}</div>;
+  }
+
+  if (!customer) {
+    return <div className="text-center p-10">顧客情報が見つかりません。</div>;
+  }
 
   return (
-    <div className="space-y-8">
-      {/* 顧客基本情報セクション */}
-      {/* 顧客基本情報セクション */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <div className="flex items-center mb-6">
-          <button onClick={() => navigate('/admin/customers')} className="mr-4 p-2 hover:bg-gray-100 rounded-full">
-            <ArrowLeft size={24} />
-          </button>
-          <div className="flex items-center space-x-4">
-             {customer.line_picture_url ? (
-                <img src={customer.line_picture_url} alt="LINE Icon" className="w-16 h-16 rounded-full"/>
-             ) : (
-                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
-                  <User size={32} className="text-gray-500"/>
-                </div>
-             )}
-             <div>
-                <h2 className="text-2xl font-bold">{customer.name}</h2>
-                <p className="text-md text-gray-500">{customer.line_display_name || 'LINE名未登録'}</p>
-             </div>
-          </div>
-        </div>
-        
-        <div className="space-y-3 text-gray-700 pl-4 border-l-2 ml-8">
-          <div className="flex items-center">
-            <strong className="w-28 text-gray-500">メールアドレス:</strong>
-            <span className="break-all">{customer.email || 'N/A'}</span>
-          </div>
-          <div className="flex items-center">
-            <strong className="w-28 text-gray-500">電話番号:</strong>
-            <span>{customer.phone_number || 'N/A'}</span>
+    <div className="container mx-auto p-4 md:p-6">
+      <button
+        onClick={() => navigate('/admin/customers')}
+        className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
+      >
+        <ArrowLeft size={20} className="mr-2" />
+        顧客一覧に戻る
+      </button>
+
+      {/* 顧客情報 */}
+      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center">
+          <div className="flex-grow">
+            <p className="text-sm text-gray-500">{customer.furigana}</p>
+            <h2 className="text-3xl font-bold">{customer.name}</h2>
+            <div className="mt-2 text-gray-700">
+              <p>メールアドレス: {customer.email || '未登録'}</p>
+              <p>電話番号: {customer.phone_number || '未登録'}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow-md">
+      {/* アクション */}
+      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <h3 className="text-xl font-bold mb-4">アクション</h3>
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-wrap gap-4">
           <button
             onClick={() => navigate(`/admin/customers/${customerId}/memo`)}
-            className="flex-1 flex items-center justify-center bg-gray-600 text-white px-4 py-3 rounded-md hover:bg-gray-700"
+            className="inline-flex items-center bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
           >
-            <FileText size={20} className="mr-2" /> 顧客メモを編集
+            <Edit size={18} className="mr-2" />
+            顧客メモを編集
           </button>
           <button
-            onClick={() => navigate(`/admin/customers/${customerId}/line`)}
-            className="flex-1 flex items-center justify-center bg-green-600 text-white px-4 py-3 rounded-md hover:bg-green-700"
+            onClick={() => navigate(`/admin/customers/${customerId}/send-message`)}
+            className="inline-flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors"
           >
-            <MessageSquare size={20} className="mr-2" /> LINEでメッセージを送信
+            <MessageSquare size={18} className="mr-2" />
+            LINEでメッセージを送信
           </button>
+          {/* ▼▼▼【ここを修正】▼▼▼ */}
           <button
-              onClick={() => navigate(`/admin/line-history?customer_id=${customerId}`)}
-              className="..."
+            onClick={() => navigate(`/admin/customers/${customerId}/history`)}
+            className="inline-flex items-center bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors"
           >
-              <History size={20} className="mr-2" /> チャット履歴
+            <Clock size={18} className="mr-2" />
+            チャット履歴
           </button>
         </div>
       </div>
 
-      {/* 予約履歴セクション */}
+      {/* 予約履歴 */}
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h3 className="text-xl font-bold mb-4">予約履歴</h3>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">予約日時</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">メニュー</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="p-3">予約日時</th>
+                <th className="p-3">メニュー</th>
+                <th className="p-3">ステータス</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {reservations.map(res => (
-                <tr key={res.id} onClick={() => navigate(`/admin/reservations/${res.reservation_number}`)} className="hover:bg-gray-100 cursor-pointer">
-                  <td className="px-6 py-4">{format(new Date(res.start_time), 'yyyy/MM/dd HH:mm')}</td>
-                  <td className="px-6 py-4">{res.service_name}</td>
-                  <td className="px-6 py-4">{res.status}</td>
+            <tbody>
+              {reservations.length > 0 ? (
+                reservations.map((reservation) => (
+                  <tr key={reservation.reservation_number} className="border-b">
+                    <td className="p-3">{new Date(reservation.start_time).toLocaleString('ja-JP')}</td>
+                    <td className="p-3">{reservation.service_name}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        reservation.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                        reservation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {reservation.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="text-center p-4">予約履歴はありません。</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

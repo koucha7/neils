@@ -754,7 +754,7 @@ class LineWebhookView(APIView):
         # メッセージタイプに応じて処理
         if message_type == 'text':
             text = message.get('text')
-            LineMessage.objects.create(customer=customer, text=text, sender_type='customer', message_type='text')
+            LineMessage.objects.create(customer=customer, message=text, sender_type='customer')
             admin_notification = f"【お客様からのメッセージ】\n送信者: {customer.name}\n\n{text}"
             send_admin_line_notification(admin_notification)
 
@@ -779,7 +779,7 @@ class LineWebhookView(APIView):
             image_url = blob.public_url
 
             # DBに保存
-            LineMessage.objects.create(customer=customer, image_url=image_url, sender_type='customer', message_type='image')
+            LineMessage.objects.create(customer=customer, image_url=image_url, sender_type='customer')
             
             # 管理者に通知
             admin_text = f"【お客様からの画像】\n送信者: {customer.name}"
@@ -924,6 +924,9 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
+        
+        logger.warning(f"--- send_message in AdminCustomerViewSet called for customer pk={pk} ---")
+        
         """特定の顧客にLINEでメッセージや画像を送信する"""
         customer = self.get_object()
         text = request.data.get('text')
@@ -936,7 +939,9 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
             if text:
                 line_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
                 LineMessage.objects.create(
-                    customer=customer, message_type='text', text=text, sender_type='admin'
+                     customer=customer,
+                     message=text,
+                     sender_type='admin'
                 )
 
             if image_file:
@@ -954,7 +959,9 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
                     ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
                 )
                 LineMessage.objects.create(
-                    customer=customer, message_type='image', image_url=image_url, sender_type='admin'
+                     customer=customer,
+                     image_url=image_url,
+                     sender_type='admin'
                 )
 
             return Response({'status': 'メッセージを送信しました。'}, status=status.HTTP_200_OK)
@@ -997,6 +1004,6 @@ class LineMessageHistoryView(generics.ListAPIView):
             queryset = queryset.filter(sent_at__date__lte=end_date)
         if query:
             queryset = queryset.filter(
-                Q(text__icontains=query) | Q(customer__name__icontains=query)
+                Q(message__icontains=query) | Q(customer__name__icontains=query)
             )
         return queryset
