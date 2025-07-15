@@ -166,7 +166,7 @@ const ReservationList: React.FC = () => {
 
           {/* ステータスフィルター */}
           <div className="p-4 bg-white rounded-lg shadow-sm flex-1">
-            <h3 className="font-semibold text-gray-700 mb-2">ステータスで絞り込み</h3>
+            <h3 className="font-semibold text-gray-700 mb-2 whitespace-nowrap">ステータスで絞り込み</h3>
             {/* sm未満では2列のグリッド、sm以上で横並びにする */}
             <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-x-6 gap-y-2">
               {Object.entries(statusFilters).map(([status, checked]) => (

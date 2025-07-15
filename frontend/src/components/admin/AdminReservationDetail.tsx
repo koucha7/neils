@@ -73,7 +73,7 @@ const AdminReservationDetail: React.FC = () => {
                 <button onClick={() => navigate('/admin/reservations')} className="p-2 rounded-full hover:bg-gray-100 mr-4">
                     <ArrowLeft size={24} />
                 </button>
-                <h2 className="text-2xl font-bold text-gray-800">予約詳細</h2>
+                <h2 className="text-2xl font-bold text-gray-800 whitespace-nowrap">予約詳細</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">

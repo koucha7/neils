@@ -83,7 +83,7 @@ const CustomerDetail: React.FC = () => {
         <div className="flex flex-col md:flex-row items-start md:items-center">
           <div className="flex-grow">
             <p className="text-sm text-gray-500">{customer.furigana}</p>
-            <h2 className="text-3xl font-bold">{customer.name}</h2>
+            <h2 className="text-3xl font-bold whitespace-nowrap">{customer.name}</h2>
             <div className="mt-2 text-gray-700">
               <p>メールアドレス: {customer.email || '未登録'}</p>
               <p>電話番号: {customer.phone_number || '未登録'}</p>

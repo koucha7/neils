@@ -92,7 +92,7 @@ const SendLineMessage: React.FC = () => {
         <button onClick={() => navigate(`/admin/customers/${customerId}`)} className="p-2 hover:bg-gray-100 rounded-full mr-4">
           <ArrowLeft size={24} />
         </button>
-        <h2 className="text-2xl font-bold">{customerName}様にLINEを送信</h2>
+        <h2 className="text-2xl font-bold whitespace-nowrap">{customerName}様にLINEを送信</h2>
       </div>
 
       {/* テキスト入力欄 */}

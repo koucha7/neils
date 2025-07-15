@@ -75,7 +75,7 @@ const LineHistoryPage: React.FC = () => {
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">LINE メッセージ履歴</h2>
+        <h2 className="text-2xl font-bold whitespace-nowrap">LINE メッセージ履歴</h2>
         {/* ▼▼▼【2. フィルター開閉ボタンを追加】▼▼▼ */}
         <button 
           onClick={() => setIsFilterOpen(!isFilterOpen)}
