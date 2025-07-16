@@ -60,6 +60,7 @@ from .serializers import (
 # --- Global Initializations ---
 logger = logging.getLogger(__name__)
 line_bot_api = LineBotApi(settings.ADMIN_LINE_CHANNEL_ACCESS_TOKEN)
+customer_ine_bot_api = LineBotApi(settings.CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN)
 
 # ==============================================================================
 # Public-Facing ViewSets (No Authentication Required)
@@ -937,7 +938,7 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
 
         try:
             if text:
-                line_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
+                customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
                 LineMessage.objects.create(
                      customer=customer,
                      message=text,
@@ -954,7 +955,7 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
                 blob.upload_from_file(image_file)
                 image_url = blob.public_url
 
-                line_bot_api.push_message(
+                customer_ine_bot_api.push_message(
                     customer.line_user_id,
                     ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
                 )
