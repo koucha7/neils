@@ -126,6 +126,7 @@ const AdminPanel: React.FC = () => {
           <Route path="users/new" element={<AdminUserCreate />} />
           <Route path="line-history" element={<LineHistoryPage />} />
           <Route path="customers/:customerId/history" element={<LineHistoryPage />} />
+          <Route path="customers/:customerId/send-message" element={<SendLineMessage />} />
         </Routes>
       </main>
     </div>

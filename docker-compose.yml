@@ -24,12 +24,14 @@ services:
     command: python manage.py runserver 0.0.0.0:8000 # Django開発サーバーを起動
     volumes:
       - ./backend:/app                 # ホストのbackendディレクトリをコンテナの/appにマウント
+      - ./backend/gcs-credentials.json:/app/gcs-credentials.json    # GCS認証情報をマウント
     ports:
       - "8000:8000"                    # ホストの8000番ポートとコンテナの8000番ポートをマッピング
     depends_on:
       - db                             # dbサービスが起動するのを待つ
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME} # DB接続情報
+      GOOGLE_APPLICATION_CREDENTIALS: /app/gcs-credentials.json
       #ADMIN_LINE_CHANNEL_ACCESS_TOKEN: ${ADMIN_LINE_CHANNEL_ACCESS_TOKEN}
       #CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN: ${CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN}
       #LINE_USER_ID: ${LINE_USER_ID}

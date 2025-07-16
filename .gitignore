@@ -633,3 +633,5 @@ backend/test_env.py
 /backend/staticfiles/rest_framework/js/prettify-min.js
 /backend/staticfiles/rest_framework/js/prettify-min.js.gz
 /backend/staticfiles/staticfiles.json
+/backend/gcs-credentials.json
+/google_credentials.json
