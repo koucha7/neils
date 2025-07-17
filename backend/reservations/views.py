@@ -1008,3 +1008,44 @@ class LineMessageHistoryView(generics.ListAPIView):
                 Q(message__icontains=query) | Q(customer__name__icontains=query)
             )
         return queryset
+    
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def send_bulk_message(request):
+    text = request.data.get('text')
+    image_file = request.FILES.get('image')
+
+    customers = Customer.objects.exclude(line_user_id__isnull=True).exclude(line_user_id='')
+
+    image_url = None
+    if image_file:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket('momonail-line-images')  # ご自身のGCSバケット名
+        file_name = f'admin_bulk/{uuid.uuid4()}_{image_file.name}'
+        blob = bucket.blob(file_name)
+        blob.upload_from_file(image_file)
+        image_url = blob.public_url
+
+    for customer in customers:
+        try:
+            if text:
+                customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
+                LineMessage.objects.create(
+                    customer=None,
+                    message=text,
+                    sender_type='admin'
+                )
+            if image_url:
+                customer_ine_bot_api.push_message(
+                    customer.line_user_id,
+                    ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
+                )
+                LineMessage.objects.create(
+                    customer=None,
+                    image_url=image_url,
+                    sender_type='admin'
+                )
+        except Exception as e:
+            logger.error(f"顧客 {customer.id} への一括送信失敗: {e}")
+    return Response({'status': 'ok'}, status=status.HTTP_200_OK)

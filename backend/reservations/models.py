@@ -198,7 +198,7 @@ class LineMessage(models.Model):
     )
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='line_messages')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='line_messages', null=True, blank=True)
     sender_type = models.CharField(max_length=10, choices=SENDER_CHOICES, verbose_name="送信者")
     message = models.TextField(blank=True, null=True, verbose_name="テキストメッセージ")
     image_url = models.URLField(max_length=2048, blank=True, null=True, verbose_name="画像URL")
