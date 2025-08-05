@@ -1,12 +1,12 @@
 
-# MomoNail/docker-compose.yml
+# JELLO/docker-compose.yml
 
 version: '3.8'
 
 services:
   db:
     image: postgres:13                 # PostgreSQLのバージョン13を使用
-    container_name: momonail_db
+    container_name: JELLO_db
     environment:
       POSTGRES_DB: ${DB_NAME}          # .env ファイルから読み込む
       POSTGRES_USER: ${DB_USER}
@@ -20,7 +20,7 @@ services:
     build:
       context: ./backend               # backendディレクトリのDockerfileを使用
       dockerfile: Dockerfile
-    container_name: momonail_backend
+    container_name: JELLO_backend
     command: python manage.py runserver 0.0.0.0:8000 # Django開発サーバーを起動
     volumes:
       - ./backend:/app                 # ホストのbackendディレクトリをコンテナの/appにマウント
@@ -44,7 +44,7 @@ services:
       dockerfile: Dockerfile
       args: # <<< ここを追加しました: ビルド時にVITE_API_BASE_URLを渡す
         VITE_API_BASE_URL: http://localhost:8000/ 
-    container_name: momonail_frontend
+    container_name: JELLO_frontend
 #    command: npm run dev --host 0.0.0.0
     volumes:
       - ./frontend:/app
@@ -55,7 +55,7 @@ services:
       - backend
     environment:
       VITE_API_BASE_URL: http://localhost:8000
-      VITE_LINE_CALLBACK_URL: 'https://momonail-frontend.onrender.com/callback'
+      VITE_LINE_CALLBACK_URL: 'https://JELLO-frontend.onrender.com/callback'
       VITE_LINE_CLIENT_ID: '2007607612'
       VITE_LINE_LOGIN_CHANNEL_ID: '2007607612'
 

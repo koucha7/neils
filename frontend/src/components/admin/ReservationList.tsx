@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale/ja';
@@ -59,7 +60,9 @@ const ReservationList: React.FC = () => {
 
 
   // 予約データを取得する関数
+  const { user } = useAdminAuth();
   const fetchReservations = useCallback(async () => {
+    if (!user) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -71,6 +74,9 @@ const ReservationList: React.FC = () => {
       if (startDate) params.append('start_date', format(startDate, 'yyyy-MM-dd'));
       if (endDate) params.append('end_date', format(endDate, 'yyyy-MM-dd'));
       activeStatuses.forEach(status => params.append('status', status));
+      if (!user.is_superuser) {
+        params.append('user_id', String(user.id));
+      }
 
       const response = await api.get(`/api/admin/reservations/?${params.toString()}`);
       setReservations(response.data);
@@ -80,7 +86,7 @@ const ReservationList: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [startDate, endDate, statusFilters]);
+  }, [startDate, endDate, statusFilters, user]);
 
   useEffect(() => {
     fetchReservations();

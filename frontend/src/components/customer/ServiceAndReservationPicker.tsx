@@ -277,7 +277,7 @@ const ServiceAndReservationPicker: React.FC = () => {
     <div className="container mx-auto p-4 sm:p-6 max-w-2xl">
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-          Nail Momo
+          JELLO
         </h2>
 
         {/* --- ① サービス選択 --- */}

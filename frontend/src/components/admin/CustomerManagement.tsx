@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../api/axiosConfig';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { SlidersHorizontal, ChevronUp } from 'lucide-react';
@@ -25,17 +26,23 @@ const CustomerManagement: React.FC = () => {
   const navigate = useNavigate();
 
   // 顧客データを取得する関数
+  const { user } = useAdminAuth();
   const fetchCustomers = useCallback(async () => {
+    if (!user) return;
     try {
       const cleanFilters = Object.fromEntries(
         Object.entries(filters).filter(([, value]) => value !== '')
       );
-      const response = await api.get('/api/admin/customers/', { params: cleanFilters });
+      let params = { ...cleanFilters };
+      if (!user.is_superuser) {
+        params = { ...params, user_id: String(user.id) };
+      }
+      const response = await api.get('/api/admin/customers/', { params });
       setCustomers(response.data);
     } catch (error) {
       console.error("顧客データの取得に失敗しました:", error);
     }
-  }, [filters]);
+  }, [filters, user]);
 
   // フィルターの値が変更されたら、1秒後に自動でデータを再取得
   useEffect(() => {

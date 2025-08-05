@@ -1,4 +1,4 @@
-# MomoNail/backend/momonail_backend_project/settings.py
+# JELLO/backend/jello_backend_project/settings.py
 import os
 import dj_database_url # ★追加
 from dotenv import load_dotenv
@@ -20,7 +20,7 @@ ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') # ★環�
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-ROOT_URLCONF = 'momonail_backend_project.urls'
+ROOT_URLCONF = 'jello_backend_project.urls'
 
 LANGUAGE_CODE = 'ja'
 
@@ -129,7 +129,7 @@ SIMPLE_JWT = {
 }
 
 
-if os.environ.get('DEBUG') == 'TRUE' :
+if os.environ.get('DEBUG') == 'True' :
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -164,7 +164,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://momonail.onrender.com', # 本番環境用
+    'https://JELLO.nail.com', # 本番環境用
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -179,3 +179,4 @@ DEFAULT_FILE_STORAGE = 'storages.backends.gcloud.GoogleCloudStorage'
 GS_BUCKET_NAME = os.environ.get('GS_BUCKET_NAME')
 GS_PROJECT_ID = os.environ.get('GS_PROJECT_ID')
 GS_UNIFORM_BUCKET_LEVEL_ACCESS = True
+AUTH_USER_MODEL = 'reservations.User'

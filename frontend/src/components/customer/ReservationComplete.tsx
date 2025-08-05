@@ -1,4 +1,4 @@
-// MomoNail/frontend/src/components/ReservationComplete.tsx
+// JELLO/frontend/src/components/ReservationComplete.tsx
 
 import React from 'react';
 import { useParams, Link } from 'react-router-dom'; // URLパラメータ取得とリンク用

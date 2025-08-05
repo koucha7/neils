@@ -23,7 +23,7 @@ import LineHistoryPage from './LineHistoryPage';
 import api from '../../api/axiosConfig';
 
 const AdminPanel: React.FC = () => {
-  const { isLoggedIn, logout } = useAdminAuth();
+  const { isLoggedIn, logout, user } = useAdminAuth();
   const location = useLocation(); // ★ 3. 現在のパスを取得するためのフック
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 768);
 
@@ -57,16 +57,27 @@ const AdminPanel: React.FC = () => {
     return <LoginScreen />;
   }
   
+  // デバッグ: user情報を確認
+  console.log('AdminPanel user:', user);
   // ★ 4. サイドバーのメニュー定義を修正（ページ切り替えStateは不要に）
-  const menuItems = [
-    { to: "/admin/reservations", label: "予約確認", icon: ClipboardList },
-    { to: "/admin/schedule", label: "受付時間設定", icon: Calendar },
-    { to: "/admin/customers", label: "顧客管理", icon: Users },
-    { to: "/admin/line-history", label: "LINE履歴", icon: Mail },
-    { to: "/admin/menu", label: "メニュー管理", icon: Scissors },
-    { to: "/admin/users", label: "ユーザー管理", icon: Users },
-    { to: "/admin/statistics", label: "統計", icon: BarChart3 },
-  ];
+  // 権限によってメニューを分岐
+  const menuItems = user && user.is_superuser
+    ? [
+        { to: "/admin/reservations", label: "予約確認", icon: ClipboardList },
+        { to: "/admin/schedule", label: "受付時間設定", icon: Calendar },
+        { to: "/admin/customers", label: "顧客管理", icon: Users },
+        { to: "/admin/line-history", label: "LINE履歴", icon: Mail },
+        { to: "/admin/menu", label: "メニュー管理", icon: Scissors },
+        { to: "/admin/users", label: "社員管理", icon: Users },
+        { to: "/admin/statistics", label: "統計", icon: BarChart3 },
+      ]
+    : [
+        { to: "/admin/reservations", label: "予約確認", icon: ClipboardList },
+        { to: "/admin/schedule", label: "受付時間設定", icon: Calendar },
+        { to: "/admin/customers", label: "顧客管理", icon: Users },
+        { to: "/admin/line-history", label: "LINE履歴", icon: Mail },
+        { to: "/admin/menu", label: "メニュー管理", icon: Scissors },
+      ];
 
   return (
     <div className="flex min-h-screen bg-gray-100 font-sans">
@@ -76,7 +87,7 @@ const AdminPanel: React.FC = () => {
         }`}
       >
         <div className="p-4 text-2xl font-bold border-b border-gray-700">
-          NailMomo
+          JELLO
         </div>
         <nav className="flex-1 p-2 space-y-1">
           {menuItems.map(item => (

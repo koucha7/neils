@@ -6,7 +6,8 @@ import { ArrowLeft } from 'lucide-react';
 import api from '../../api/axiosConfig';
 
 const AdminUserCreate: React.FC = () => {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(''); // ログインID
+  const [fullName, setFullName] = useState(''); // 氏名
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSuperuser, setIsSuperuser] = useState(false);
@@ -22,6 +23,7 @@ const AdminUserCreate: React.FC = () => {
     try {
       await api.post('/api/admin/users/', {
         username,
+        full_name: fullName,
         email,
         password,
         is_superuser: isSuperuser,
@@ -42,13 +44,17 @@ const AdminUserCreate: React.FC = () => {
         <button onClick={() => navigate('/admin/users')} className="p-2 hover:bg-gray-100 rounded-full mr-4">
           <ArrowLeft size={24} />
         </button>
-        <h2 className="text-2xl font-bold">管理者ユーザーの新規追加</h2>
+        <h2 className="text-2xl font-bold">社員の新規追加</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="username" className="block text-sm font-medium text-gray-700">ユーザー名</label>
+          <label htmlFor="username" className="block text-sm font-medium text-gray-700">ログインID</label>
           <input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} required className="w-full p-2 mt-1 border rounded-md"/>
+        </div>
+        <div>
+          <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">氏名</label>
+          <input id="fullName" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required className="w-full p-2 mt-1 border rounded-md"/>
         </div>
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700">メールアドレス</label>

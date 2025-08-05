@@ -15,7 +15,7 @@ from pathlib import Path
 
 # --- Django & DRF Core ---
 from django.conf import settings
-from django.contrib.auth.models import User
+from reservations.models import User
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.mail import send_mail
@@ -141,10 +141,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
 
         try:
             if reservation.customer.email:
-                subject = "【MomoNail】ご予約ありがとうございます（お申込内容の確認）"
+                subject = "【JELLO】ご予約ありがとうございます（お申込内容の確認）"
                 customer_message = (
                     f"{reservation.customer.name}様\n\n"
-                    f"この度は、MomoNailにご予約いただき、誠にありがとうございます。\n"
+                    f"この度は、JELLOにご予約いただき、誠にありがとうございます。\n"
                     f"以下の内容でご予約を承りました。ネイリストが内容を確認後、改めて「予約確定メール」をお送りしますので、今しばらくお待ちください。\n\n"
                     f"--- ご予約内容 ---\n"
                     f"予約番号: {reservation.reservation_number}\n"
@@ -549,14 +549,14 @@ def confirm_reservation_and_notify(request):
         return Response({"message": "予約が見つからなかったため、その旨をLINEで通知しました。"}, status=status.HTTP_404_NOT_FOUND)
     
 class AdminUserManagementViewSet(viewsets.ModelViewSet):
-    """管理者が他の管理者ユーザーを作成・管理するためのAPI"""
+    """管理者が他の社員を作成・管理するためのAPI"""
     queryset = User.objects.filter(is_staff=True)
     serializer_class = AdminUserSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def perform_create(self, serializer):
-        """新しい管理者ユーザーを作成する際の追加処理"""
+        """新しい社員を作成する際の追加処理"""
         password = self.request.data.get('password')
         user = serializer.save(is_staff=True)
         if password:
@@ -566,7 +566,7 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='generate-line-link')
     def generate_line_link(self, request, pk=None):
-        """指定された管理者ユーザーのLINE連携用リンクを生成する"""
+        """指定された社員のLINE連携用リンクを生成する"""
         user = self.get_object()
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.line_registration_token = uuid.uuid4()
@@ -577,7 +577,7 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
     
 class AdminUserViewSet(viewsets.ModelViewSet):
     """
-    管理者ユーザーの参照、作成、更新、削除を行うためのAPI。
+    社員の参照、作成、更新、削除を行うためのAPI。
     LINE連携URLの生成機能も含む。
     """
     queryset = User.objects.all().order_by('date_joined')
@@ -587,7 +587,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='generate-line-link')
     def generate_line_link(self, request, pk=None):
         """
-        指定された管理者ユーザーのLINE連携用リンクを生成する
+        指定された社員のLINE連携用リンクを生成する
         """
         user = self.get_object()
         profile, created = UserProfile.objects.get_or_create(user=user)
@@ -612,18 +612,22 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         """
-        新しい管理者ユーザーを作成する。
+        新しい社員を作成する。
         パスワードはハッシュ化して保存する。
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         # パスワードを取得し、ハッシュ化してユーザーを作成
+        extra_fields = {
+            'is_superuser': serializer.validated_data.get('is_superuser', False),
+            'is_staff': True
+        }
         user = User.objects.create_user(
             email=serializer.validated_data['email'],
             username=serializer.validated_data['username'],
             password=request.data.get('password'),
-            is_superuser=serializer.validated_data.get('is_superuser', False)
+            **extra_fields
         )
         
         # 作成したユーザー情報を返す
@@ -633,7 +637,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
 
 class AdminLineLinkView(APIView):
     """
-    管理者ユーザーアカウントとLINEアカウントを連携させるためのAPI
+    社員アカウントとLINEアカウントを連携させるためのAPI
     """
     # このAPIは認証不要でアクセスできる必要がある
     authentication_classes = []
@@ -771,7 +775,7 @@ class LineWebhookView(APIView):
             
             # GCSにアップロード
             storage_client = storage.Client()
-            bucket = storage_client.bucket('momonail-line-images') # ★ご自身のGCSバケット名
+            bucket = storage_client.bucket('JELLO-line-images') # ★ご自身のGCSバケット名
             file_name = f'customer_sent/{uuid.uuid4()}.jpg'
             blob = bucket.blob(file_name)
             
@@ -799,8 +803,20 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get_queryset(self):
-        """日付やステータスで予約をフィルタリングする"""
+        """スーパーユーザー以外は自分に紐づく顧客の予約のみ返す"""
         queryset = super().get_queryset()
+        user = self.request.user
+        # スーパーユーザーは全件
+        if user.is_superuser:
+            pass
+        else:
+            # UserProfileのline_user_idが一致する顧客のみ
+            try:
+                line_user_id = user.profile.line_user_id
+                customer_ids = Customer.objects.filter(line_user_id=line_user_id).values_list('id', flat=True)
+                queryset = queryset.filter(customer_id__in=customer_ids)
+            except Exception:
+                queryset = queryset.none()
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
         status_list = self.request.query_params.getlist('status')
@@ -825,7 +841,7 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
         # --- 通知処理 ---
         try:
             if reservation.customer and reservation.customer.email:
-                subject = "【MomoNail】ご予約が確定いたしました"
+                subject = "【JELLO】ご予約が確定いたしました"
                 message = (
                     f"{reservation.customer.name}様\n\n"
                     f"お申し込みいただいた内容でご予約が確定いたしました。\n"
@@ -892,8 +908,17 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, JSONParser]
 
     def get_queryset(self):
-        """名前、メール、電話番号で顧客を検索する"""
+        """スーパーユーザー以外は自分に紐づく顧客のみ返す"""
         queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser:
+            pass
+        else:
+            try:
+                line_user_id = user.profile.line_user_id
+                queryset = queryset.filter(line_user_id=line_user_id)
+            except Exception:
+                queryset = queryset.none()
         name = self.request.query_params.get('name')
         email = self.request.query_params.get('email')
         phone = self.request.query_params.get('phone_number')
@@ -904,7 +929,6 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(email__icontains=email)
         if phone:
             queryset = queryset.filter(phone_number__icontains=phone)
-            
         return queryset
 
     @action(detail=True, methods=['get'])
@@ -947,7 +971,7 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
 
             if image_file:
                 storage_client = storage.Client()
-                bucket = storage_client.bucket('momonail-line-images') # ★ご自身のGCSバケット名
+                bucket = storage_client.bucket('JELLO-line-images') # ★ご自身のGCSバケット名
                 
                 file_name = f'admin_sent/{uuid.uuid4()}_{image_file.name}'
                 blob = bucket.blob(file_name)
@@ -976,7 +1000,7 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated, IsAdminUser])
 def admin_me(request):
-    """現在認証されている管理者ユーザーの情報を返す"""
+    """現在認証されている社員の情報を返す"""
     serializer = AdminUserSerializer(request.user)
     return Response(serializer.data)
 
@@ -991,7 +1015,17 @@ class LineMessageHistoryView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get_queryset(self):
+        user = self.request.user
         queryset = LineMessage.objects.select_related('customer').order_by('-sent_at')
+        if user.is_superuser:
+            pass
+        else:
+            try:
+                line_user_id = user.profile.line_user_id
+                customer_ids = Customer.objects.filter(line_user_id=line_user_id).values_list('id', flat=True)
+                queryset = queryset.filter(customer_id__in=customer_ids)
+            except Exception:
+                queryset = queryset.none()
         customer_id = self.request.query_params.get('customer_id')
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
@@ -1021,7 +1055,7 @@ def send_bulk_message(request):
     image_url = None
     if image_file:
         storage_client = storage.Client()
-        bucket = storage_client.bucket('momonail-line-images')  # ご自身のGCSバケット名
+        bucket = storage_client.bucket('JELLO-line-images')  # ご自身のGCSバケット名
         file_name = f'admin_bulk/{uuid.uuid4()}_{image_file.name}'
         blob = bucket.blob(file_name)
         blob.upload_from_file(image_file)

@@ -1,11 +1,11 @@
-# MomoNail/backend/Dockerfile
+# JELLO/backend/Dockerfile
 # Pythonベースイメージ
 FROM docker.io/library/python:3.11-slim-buster
 
 # 環境変数を設定
 ENV PYTHONUNBUFFERED 1
 ENV PYTHONDONTWRITEBYTECODE 1
-ENV DJANGO_SETTINGS_MODULE momonail_backend_project.settings
+ENV DJANGO_SETTINGS_MODULE jello_backend_project.settings
 
 # 作業ディレクトリを設定
 WORKDIR /app

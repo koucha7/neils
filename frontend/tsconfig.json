@@ -1,4 +1,4 @@
-// MomoNail/frontend/tsconfig.json
+// JELLO/frontend/tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2020",

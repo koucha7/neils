@@ -1,4 +1,4 @@
-# MomoNail/frontend/Dockerfile
+# JELLO/frontend/Dockerfile
 # Viteビルド用ステージ
 FROM node:20-alpine AS builder
 

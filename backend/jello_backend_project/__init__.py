@@ -1,4 +1,4 @@
-# backend/momonail_backend_project/__init__.py
+# backend/jello_backend_project/__init__.py
 
 from .celery import app as celery_app
 

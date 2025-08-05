@@ -1,4 +1,4 @@
-// MomoNail/frontend/tsconfig.node.json
+// JELLO/frontend/tsconfig.node.json
 {
   "compilerOptions": {
     "composite": true,

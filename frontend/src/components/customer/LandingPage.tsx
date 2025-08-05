@@ -25,7 +25,7 @@ function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-500 to-indigo-600 flex flex-col justify-center items-center p-4">
       <header className="text-center text-white mb-12">
-        <h1 className="text-5xl font-extrabold tracking-tight">NailMomo</h1>
+        <h1 className="text-5xl font-extrabold tracking-tight">JELLO</h1>
       </header>
 
       <main className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-8">

@@ -4,10 +4,11 @@ import React, { createContext, useState, useContext, useEffect, ReactNode, useCa
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 
-// 管理者ユーザー情報の型定義
+// 社員情報の型定義
 interface AdminUser {
   id: number;
   username: string;
+  is_superuser: boolean;
 }
 
 // AdminAuthContextが提供する値の型定義
@@ -47,17 +48,21 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (username: string, password: string) => {
     const response = await api.post('/api/token/', { username, password });
     setAuthTokens(response.data.access, response.data.refresh);
-    // ▼▼▼【2. ログイン状態を更新】▼▼▼
-    setIsLoggedIn(true); // ★ Stateを更新して再レンダリングをトリガーします
+    // ユーザー情報取得
+    const me = await api.get('/api/admin/me/');
+    setUser(me.data);
+    setIsLoggedIn(true);
   };
 
   // LINEでのログイン処理
   const lineLogin = async (code: string) => {
     const response = await api.post('/api/admin/login-line/', { code });
     setAuthTokens(response.data.access, response.data.refresh);
-    // ▼▼▼【3. ログイン状態を更新】▼▼▼
-    setIsLoggedIn(true); // ★ Stateを更新します
-    navigate('/admin/reservations'); // ログイン成功後、管理画面の予約一覧に遷移
+    // ユーザー情報取得
+    const me = await api.get('/api/admin/me/');
+    setUser(me.data);
+    setIsLoggedIn(true);
+    navigate('/admin/reservations');
   };
 
   // ログアウト処理
@@ -70,14 +75,16 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
 
   // アプリケーション起動時の認証状態チェック
   useEffect(() => {
-    // このuseEffectは初期のisLoggedInをセットする役割に絞り、
-    // 実際のユーザー情報取得は各ページや共通レイアウトで行うのが望ましいです。
     const tokenExists = !!localStorage.getItem('adminAccessToken');
     if (isLoggedIn !== tokenExists) {
       setIsLoggedIn(tokenExists);
     }
+    // トークンがあればユーザー情報取得
+    if (tokenExists && !user) {
+      api.get('/api/admin/me/').then(res => setUser(res.data)).catch(() => setUser(null));
+    }
     setIsLoading(false);
-  }, [isLoggedIn]);
+  }, [isLoggedIn, user]);
 
   const value = {
     user,

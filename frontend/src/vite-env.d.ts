@@ -1,4 +1,4 @@
-// MomoNail/frontend/src/vite-env.d.ts
+// JELLO/frontend/src/vite-env.d.ts
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {

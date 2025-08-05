@@ -2,7 +2,7 @@
 
 from rest_framework import serializers
 from .models import Salon, Service, Reservation, NotificationSetting, Customer, UserProfile, LineMessage
-from django.contrib.auth.models import User
+from reservations.models import User
 
 # --- 基本的なモデルのシリアライザー ---
 
@@ -56,13 +56,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = ['line_user_id']
 
 class AdminUserSerializer(serializers.ModelSerializer):
-    """管理者ユーザー表示用のシリアライザー"""
+    """社員表示用のシリアライザー"""
     profile = UserProfileSerializer(read_only=True)
     is_line_linked = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'is_staff', 'profile', 'is_line_linked']
+        fields = ['id', 'username', 'full_name', 'email', 'is_staff', 'is_superuser', 'profile', 'is_line_linked']
     
     def get_is_line_linked(self, obj):
         """LINE連携済みかどうかのフラグを返す"""

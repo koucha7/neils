@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../../api/axiosConfig";
+import { useAdminAuth } from '../../context/AdminAuthContext';
 import { format } from "date-fns";
 import {
   User,
@@ -53,13 +54,18 @@ const LineHistoryPage: React.FC = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
+  const { user } = useAdminAuth();
   const fetchHistory = useCallback(async (currentFilters: HistoryFilters) => {
+    if (!user) return;
     try {
       const cleanFilters = Object.fromEntries(
         Object.entries(currentFilters).filter(
           ([, value]) => value !== "" && value !== null
         )
       );
+      if (!user.is_superuser) {
+        cleanFilters.user_id = String(user.id);
+      }
       const response = await api.get("/api/admin/line-history/", {
         params: cleanFilters,
       });
@@ -67,7 +73,7 @@ const LineHistoryPage: React.FC = () => {
     } catch (error) {
       console.error("履歴の取得に失敗:", error);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchHistory(filters);
@@ -289,7 +295,7 @@ const LineHistoryPage: React.FC = () => {
         })()}
         <div ref={messagesEndRef} />
         </div>
-        <div className="fixed bottom-0 left-0 w-full flex flex-col items-center bg-white border-t pt-4 pb-6 z-50">
+        <div className="w-full flex flex-col items-center bg-white border-t pt-4 pb-6">
           {!isBulkFormOpen ? (
             <button
               className="px-6 py-3 bg-green-600 text-white rounded-full shadow-lg font-bold hover:bg-green-700"

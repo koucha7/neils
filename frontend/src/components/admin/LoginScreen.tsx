@@ -33,7 +33,7 @@ const LoginScreen: React.FC = () => {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
         <h2 className="text-3xl font-bold text-center text-gray-800 whitespace-nowrap">
-          MomoNail 管理画面
+          JELLO 管理画面
         </h2>
         
         {error && <p className="text-center text-red-500">{error}</p>}
@@ -44,7 +44,7 @@ const LoginScreen: React.FC = () => {
               htmlFor="username"
               className="text-sm font-medium text-gray-700"
             >
-              ユーザー名
+              ログインID
             </label>
             <input
               id="username"
@@ -91,7 +91,6 @@ const LoginScreen: React.FC = () => {
             <div className="relative px-2 text-sm text-gray-500 bg-white">または</div>
         </div>
 
-        {/* ▼▼▼【ここを修正】▼▼▼ */}
         {/* 通常のログインボタンと同じスタイルを適用します */}
         <button
           onClick={handleLineLogin}

@@ -4,6 +4,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale/ja';
 import { format, isSameDay } from 'date-fns';
 import api from '../../api/axiosConfig';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 
 // 日本語ロケールを登録
 registerLocale("ja", ja);
@@ -25,14 +26,19 @@ const AttendanceManagement: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [configuredDates, setConfiguredDates] = useState<Set<string>>(new Set());
 
+  const { user } = useAdminAuth();
   const fetchConfiguredDates = useCallback(async (month: Date) => {
+    if (!user) return;
     try {
       const year = month.getFullYear();
       const monthNum = month.getMonth() + 1;
+      let params: any = { year, month: monthNum };
+      if (!user.is_superuser) {
+        params.user_id = String(user.id);
+      }
       const response = await api.get("/api/admin/configured-dates/", {
-        params: { year, month: monthNum },
+        params,
       });
-      
       if (Array.isArray(response.data)) {
         setConfiguredDates(new Set(response.data));
       } else {
@@ -42,7 +48,7 @@ const AttendanceManagement: React.FC = () => {
     } catch (error: any) {
       console.error("設定済み日付の取得に失敗しました:", error);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchConfiguredDates(currentMonth);
