@@ -130,7 +130,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
         try:
             admin_message = (
                 f"新しい予約が入りました！\n\n"
-                f"予約番号: {reservation.reservation_number}\n"
                 f"お名前: {reservation.customer.name}様\n"
                 f"日時: {reservation.start_time.strftime('%Y-%m-%d %H:%M')}\n"
                 f"サービス: {reservation.service.name}"
@@ -147,7 +146,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
                     f"この度は、JELLOにご予約いただき、誠にありがとうございます。\n"
                     f"以下の内容でご予約を承りました。ネイリストが内容を確認後、改めて「予約確定メール」をお送りしますので、今しばらくお待ちください。\n\n"
                     f"--- ご予約内容 ---\n"
-                    f"予約番号: {reservation.reservation_number}\n"
                     f"日時: {reservation.start_time.strftime('%Y年%m月%d日 %H:%M')}\n"
                     f"サービス: {reservation.service.name}\n"
                     f"------------------"
@@ -192,7 +190,6 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 'summary': f"【予約】{reservation.customer.name}様",
                 'description': (
                     f"サービス: {reservation.service.name}\n"
-                    f"予約番号: {reservation.reservation_number}\n"
                     f"連絡先: {reservation.customer.email or 'メールアドレス未登録'}"
                 ),
                 'start': {'dateTime': reservation.start_time.isoformat(), 'timeZone': 'Asia/Tokyo'},
@@ -491,14 +488,16 @@ class LineLoginCallbackView(APIView):
             line_profile = get_line_user_profile(code, flow_type='customer')
             line_user_id = line_profile.get('sub')
             
-            customer, _ = Customer.objects.update_or_create(
+            customer, created = Customer.objects.update_or_create(
                 line_user_id=line_user_id,
                 defaults={
                     'line_display_name': line_profile.get('name'),
                     'line_picture_url': line_profile.get('picture'),
-                    'name': Customer._meta.get_field('name').get_default() # 新規作成時のみデフォルト名
                 }
             )
+            if created:
+                customer.name = Customer._meta.get_field('name').get_default()
+                customer.save()
             
             refresh = RefreshToken()
             refresh['line_user_id'] = customer.line_user_id
@@ -748,19 +747,26 @@ class LineWebhookView(APIView):
         if not line_user_id:
             return
 
-        # 顧客を取得または新規作成
         customer, created = Customer.objects.get_or_create(
             line_user_id=line_user_id,
-            defaults={'name': '新規のお客様'} # 仮の名前
+            defaults={'name': '新規のお客様'}
         )
         if created:
             logger.info(f"新規顧客を作成しました: {line_user_id}")
 
-        # メッセージタイプに応じて処理
+        # 顧客詳細ページへのリンクを生成
+        base_url = os.environ.get('ADMIN_CUSTOMER_DETAIL_URL', 'https://JELLO.nail.com/admin/customers/')
+        detail_url = f"{base_url}{customer.id}"
+
         if message_type == 'text':
             text = message.get('text')
             LineMessage.objects.create(customer=customer, message=text, sender_type='customer')
-            admin_notification = f"【お客様からのメッセージ】\n送信者: {customer.name}\n\n{text}"
+            admin_notification = (
+                f"【お客様からのメッセージ】\n"
+                f"送信者: {customer.name}\n"
+                f"{detail_url}\n\n"
+                f"{text}"
+            )
             send_admin_line_notification(admin_notification)
 
         elif message_type == 'image':

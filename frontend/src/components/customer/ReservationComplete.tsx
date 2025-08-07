@@ -11,10 +11,6 @@ const ReservationComplete: React.FC = () => {
         <div className="container mx-auto p-10 text-center bg-white rounded-lg shadow-xl mt-10">
             <h2 className="text-4xl font-extrabold text-green-600 mb-6">予約が完了しました！</h2>
             <p className="text-xl mb-4 text-gray-800">ご予約ありがとうございます。以下の内容で承りました。</p>
-            {/* 予約番号の表示 */}
-            <p className="text-3xl font-semibold text-blue-700 mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg inline-block">
-                あなたの予約番号: <span className="font-extrabold text-purple-800 break-all">{reservationNumber}</span>
-            </p>
             <p className="text-gray-700 text-lg mb-8">
                 予約内容は、ご登録いただいたメールアドレスに確認メールとして送信されました。<br />
                 この予約番号は、後で予約内容の確認や変更、キャンセルを行う際に必要になりますので、お控えください。
