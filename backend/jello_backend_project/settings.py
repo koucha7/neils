@@ -109,6 +109,8 @@ GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 ADMIN_LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
 CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN')
 LINE_USER_ID = os.environ.get('LINE_USER_ID')
+LINE_CHANNEL_ID = os.environ.get('LINE_CHANNEL_ID')
+LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 
 # メールの設定 (Gmailを使う例)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

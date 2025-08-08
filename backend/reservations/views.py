@@ -513,6 +513,16 @@ class LineLoginCallbackView(APIView):
             return Response({'error': 'Code not provided'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            # LINE関連の設定が有効かチェック
+            if not all([
+                settings.LINE_CHANNEL_ID,
+                settings.LINE_CHANNEL_SECRET,
+            ]):
+                logger.warning("LINE設定が不完全です。LINEログインが無効化されています。")
+                return Response({
+                    'error': 'LINE login is not configured properly'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
             line_profile = get_line_user_profile(code, flow_type='customer')
             line_user_id = line_profile.get('sub')
             
@@ -535,9 +545,23 @@ class LineLoginCallbackView(APIView):
                 'access': str(refresh.access_token),
             }, status=status.HTTP_200_OK)
             
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"LINE API HTTPエラー: {e.response.status_code if e.response else 'Unknown'} - {e}")
+            if e.response:
+                logger.error(f"LINE API エラー詳細: {e.response.text}")
+            return Response({
+                'error': 'LINE authentication failed. Please try again.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"LINE API通信エラー: {e}")
+            return Response({
+                'error': 'LINE service is currently unavailable. Please try again later.'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as e:
             logger.error(f"LINEログインコールバックエラー: {e}", exc_info=True)
-            return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                'error': 'An unexpected error occurred.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @authentication_classes([CustomerJWTAuthentication])
