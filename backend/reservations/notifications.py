@@ -1,5 +1,7 @@
 import os
 import requests
+from django.core.mail import send_mail
+from django.conf import settings
 
 def send_line_push_message(user_id, messages, channel_access_token):
     """
@@ -63,3 +65,66 @@ def send_admin_line_image(image_url):
         messages=image_message,
         channel_access_token=channel_access_token
     )
+
+
+def send_customer_line_notification(customer, message):
+    """
+    顧客にLINEメッセージを送信する関数
+    """
+    if not customer.line_user_id:
+        print(f"顧客 {customer.name} にはLINE連携が設定されていません。")
+        return False, "LINE連携なし"
+    
+    # 顧客向けLINEチャンネルのアクセストークンを使用
+    channel_access_token = os.environ.get('CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN')
+    
+    return send_line_push_message(
+        user_id=customer.line_user_id,
+        messages=message,
+        channel_access_token=channel_access_token
+    )
+
+
+def send_reservation_confirmation_email(customer, reservation, service):
+    """
+    予約確定メールを送信する関数
+    """
+    if not customer.email:
+        print(f"顧客 {customer.name} にはメールアドレスが設定されていません。")
+        return False, "メールアドレスなし"
+    
+    subject = '予約確定のお知らせ'
+    
+    # 予約日時を日本語形式でフォーマット
+    formatted_date = reservation.start_time.strftime('%Y年%m月%d日 %H:%M')
+    
+    message = f"""
+{customer.name} 様
+
+いつもご利用いただきありがとうございます。
+ご予約が確定いたしましたのでお知らせします。
+
+【予約詳細】
+・サービス: {service.name}
+・予約日時: {formatted_date}
+・所要時間: {service.duration_minutes}分
+・料金: ¥{service.price:,}
+
+ご不明な点がございましたら、お気軽にお問い合わせください。
+
+当日のご来店をお待ちしております。
+"""
+    
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[customer.email],
+            fail_silently=False,
+        )
+        print(f"予約確定メールを送信しました: {customer.email}")
+        return True, "成功"
+    except Exception as e:
+        print(f"メール送信に失敗しました: {e}")
+        return False, str(e)

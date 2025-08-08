@@ -114,7 +114,7 @@ const AdminPanel: React.FC = () => {
             }
           `}
         >
-          <div className="p-4 text-2xl font-bold border-b border-gray-700 flex-shrink-0">
+          <div className="p-4 text-lg font-bold border-b border-gray-700 flex-shrink-0">
             JELLO
           </div>
           <nav className="flex-1 p-2 space-y-1 overflow-y-auto">

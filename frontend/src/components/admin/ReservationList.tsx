@@ -139,7 +139,7 @@ const ReservationList: React.FC = () => {
     <div className="space-y-6">
       {/* ▼▼▼【ここからが修正箇所】▼▼▼ */}
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">予約一覧</h1>
+        <h1 className="text-xl font-bold text-gray-800">予約一覧</h1>
         <div className="flex items-center gap-2">
           {/* 新規作成ボタン */}
           <button 

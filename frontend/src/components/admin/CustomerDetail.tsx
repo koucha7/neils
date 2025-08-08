@@ -32,6 +32,17 @@ const CustomerDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
+  // 顧客詳細データを再取得する関数
+  const refetchCustomerData = async () => {
+    try {
+      // 予約履歴の取得
+      const reservationsResponse = await api.get(`/api/admin/customers/${customerId}/reservations/`);
+      setReservations(reservationsResponse.data);
+    } catch (err) {
+      console.error("予約履歴の再取得に失敗しました:", err);
+    }
+  };
+
   // ステータスを日本語に変換する関数
   const getStatusLabel = (status: string): string => {
     switch (status) {
@@ -113,7 +124,7 @@ const CustomerDetail: React.FC = () => {
   console.log("CustomerDetail rendering - customerId:", customerId, "customer:", customer);
 
   return (
-    <div className="container mx-auto p-4 md:p-6">
+    <div className="container mx-auto p-2 md:p-4 max-w-6xl">
       <button
         onClick={() => navigate('/admin/customers')}
         className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
@@ -123,11 +134,11 @@ const CustomerDetail: React.FC = () => {
       </button>
 
       {/* 顧客情報 */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md mb-4 md:mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center">
           <div className="flex-grow">
             <p className="text-sm text-gray-500">{customer.furigana}</p>
-            <h2 className="text-2xl font-bold whitespace-nowrap">{customer.name}</h2>
+            <h2 className="text-lg font-bold whitespace-nowrap">{customer.name}</h2>
             <div className="mt-2 text-gray-700">
               <p>メールアドレス: {customer.email || '未登録'}</p>
               <p>電話番号: {customer.phone_number || '未登録'}</p>
@@ -137,8 +148,8 @@ const CustomerDetail: React.FC = () => {
       </div>
 
       {/* アクション */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6 border-2">
-        <h3 className="text-xl font-bold mb-4">アクション</h3>
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md mb-4 md:mb-6 border-2">
+        <h3 className="text-lg font-bold mb-4">アクション</h3>
         <div className="flex flex-wrap gap-4 border p-2">{/* デバッグ用ボーダー */}
           <button
             onClick={() => navigate(`/admin/customers/${customerId}/memo`)}
@@ -156,7 +167,7 @@ const CustomerDetail: React.FC = () => {
           </button>
           {/* ▼▼▼【ここを修正】▼▼▼ */}
           <button
-            onClick={() => navigate(`/admin/customers/${customerId}/history`)}
+            onClick={() => navigate(`/admin/line-history?query=${encodeURIComponent(customer.name)}`)}
             className="inline-flex items-center bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors"
           >
             <Clock size={18} className="mr-2" />
@@ -176,8 +187,8 @@ const CustomerDetail: React.FC = () => {
       </div>
 
       {/* 予約履歴 */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-bold mb-4">予約履歴</h3>
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md">
+        <h3 className="text-lg font-bold mb-4">予約履歴</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
@@ -191,7 +202,23 @@ const CustomerDetail: React.FC = () => {
               {reservations.length > 0 ? (
                 reservations.map((reservation) => (
                   <tr key={reservation.reservation_number} className="border-b">
-                    <td className="p-3 whitespace-nowrap">{new Date(reservation.start_time).toLocaleString('ja-JP')}</td>
+                    <td className="p-3">
+                      <div className="flex flex-col">
+                        <div className="font-medium">
+                          {new Date(reservation.start_time).toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                          })}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {new Date(reservation.start_time).toLocaleTimeString('ja-JP', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      </div>
+                    </td>
                     <td className="p-3">{reservation.service_name}</td>
                     <td className="p-3 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${getStatusClass(reservation.status)}`}>
@@ -218,6 +245,7 @@ const CustomerDetail: React.FC = () => {
             onClose={() => {
               console.log("モーダルを閉じます");
               setShowModal(false);
+              refetchCustomerData(); // 予約データを再取得
             }}
           />
         );

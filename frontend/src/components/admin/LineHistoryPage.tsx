@@ -44,14 +44,17 @@ const LineHistoryPage: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const navigate = useNavigate();
 
+  const initialQuery = searchParams.get("query") || "";
+  
   const [filters, setFilters] = useState<HistoryFilters>({
     customer_id: searchParams.get("customer_id") || "",
     start_date: searchParams.get("start_date") || "",
     end_date: searchParams.get("end_date") || "",
-    query: searchParams.get("query") || "",
+    query: initialQuery,
   });
 
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  // クエリパラメータがある場合はフィルターを開いた状態にする
+  const [isFilterOpen, setIsFilterOpen] = useState(Boolean(initialQuery));
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
   const { user } = useAdminAuth();
@@ -122,7 +125,7 @@ const LineHistoryPage: React.FC = () => {
       {/* ヘッダーをstickyで固定 */}
       <div className="sticky top-0 z-10 bg-white pb-2">
         <div className="flex justify-between items-center mb-4 px-4 pt-4 sm:px-0 sm:pt-0">
-          <h2 className="text-2xl font-bold whitespace-nowrap">
+          <h2 className="text-lg font-bold whitespace-nowrap">
             LINE メッセージ履歴
           </h2>
           <button
@@ -147,7 +150,7 @@ const LineHistoryPage: React.FC = () => {
               <input
                 type="text"
                 name="query"
-                placeholder="顧客名や本文で検索..."
+                placeholder="顧客名やメッセージ内容で検索..."
                 value={filters.query}
                 onChange={handleFilterChange}
                 className="p-2 border rounded w-full"

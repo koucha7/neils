@@ -428,6 +428,109 @@ class AdminAvailableSlotView(APIView):
         AvailableTimeSlot.objects.bulk_create(slots_to_create)
 
         return Response({'status': 'success'}, status=status.HTTP_201_CREATED)
+
+
+class AdminAvailableTimesForReservationView(APIView):
+    """
+    管理者の予約作成時に使用する、実際に予約可能な時間帯を返すAPI
+    既存の予約と重複しない時間帯のみを返す
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated] 
+
+    def get(self, request, *args, **kwargs):
+        """
+        指定された日付で、実際に予約可能な時間帯を返す
+        """
+        date_str = request.query_params.get('date')
+        
+        if not date_str:
+            return Response({"error": "日付パラメータが必要です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({"error": "無効な日付形式です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. その日に登録されている予約可能スロットを全て取得
+        available_slots = AvailableTimeSlot.objects.filter(date=target_date)
+        
+        # 2. その日の既存の予約の開始時刻をセットとして取得
+        booked_start_times = set(
+            Reservation.objects.filter(start_time__date=target_date)
+                               .values_list('start_time__time', flat=True)
+        )
+
+        # 3. 実際に予約可能な時間帯のみを返す
+        free_slots = []
+        for slot in available_slots:
+            if slot.time not in booked_start_times:
+                free_slots.append(slot.time.strftime('%H:%M'))
+
+        # 時間順にソート
+        free_slots.sort()
+        
+        return Response(free_slots, status=status.HTTP_200_OK)
+
+class AdminDetailedTimeSlotsView(APIView):
+    """
+    管理者用：営業時間内外と予約状況の詳細情報を返すAPI
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated] 
+
+    def get(self, request, *args, **kwargs):
+        """
+        営業時間内の利用可能時間、営業時間外の時間、予約済み時間を区別して返す
+        """
+        date_str = request.query_params.get('date')
+        
+        if not date_str:
+            return Response({"error": "日付パラメータが必要です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({"error": "無効な日付形式です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 9:00-21:00の30分間隔の全時間スロットを生成
+        all_time_slots = []
+        for hour in range(9, 21):
+            all_time_slots.append(f"{hour:02d}:00")
+            all_time_slots.append(f"{hour:02d}:30")
+        all_time_slots.append("21:00")
+
+        # その日に登録されている営業時間（予約可能スロット）を取得
+        business_hours_slots = set(
+            AvailableTimeSlot.objects.filter(date=target_date)
+                                    .values_list('time', flat=True)
+        )
+        business_hours = [t.strftime('%H:%M') for t in business_hours_slots]
+
+        # その日の既存の予約の開始時刻を取得
+        booked_times = set(
+            Reservation.objects.filter(start_time__date=target_date)
+                               .values_list('start_time__time', flat=True)
+        )
+        booked_times_str = [t.strftime('%H:%M') for t in booked_times]
+
+        # 営業時間内で予約可能な時間
+        available_times = []
+        for time_str in business_hours:
+            if time_str not in booked_times_str:
+                available_times.append(time_str)
+
+        # 営業時間外の時間（予約が入っていない時間のみ）
+        outside_business_hours = []
+        for time_str in all_time_slots:
+            if time_str not in business_hours and time_str not in booked_times_str:
+                outside_business_hours.append(time_str)
+
+        return Response({
+            "available_times": sorted(available_times),  # 営業時間内で予約可能
+            "outside_business_hours": sorted(outside_business_hours),  # 営業時間外で予約可能
+            "booked_times": sorted(booked_times_str)  # 予約済み（表示しない）
+        }, status=status.HTTP_200_OK)
     
 class ConfiguredDatesView(APIView):
     """
@@ -909,7 +1012,6 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                     f"お申し込みいただいた内容でご予約が確定いたしました。\n"
                     f"ご来店を心よりお待ちしております。\n\n"
                     f"--- ご予約内容 ---\n"
-                    f"予約番号: {reservation.reservation_number}\n"
                     f"日時: {reservation.start_time.strftime('%Y年%m月%d日 %H:%M')}\n"
                     f"サービス: {reservation.service.name}\n"
                 )
@@ -993,9 +1095,10 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                 reservation = Reservation.objects.create(
                     customer=customer,
                     service=service,
+                    salon=service.salon,  # サービスが属するサロンを設定
                     start_time=start_datetime,
                     end_time=end_datetime,
-                    status='pending'
+                    status='confirmed'  # 管理画面からの予約は確定状態
                 )
 
                 # LINE連携用URL生成＆管理LINE通知
@@ -1004,10 +1107,18 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                     link_url = f"{base_url}/link-customer/{customer.id}"
                     from .notifications import send_admin_line_notification
                     send_admin_line_notification(
-                        f"新規顧客予約が作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nLINE連携: {link_url}"
+                        f"新規顧客予約が確定済みで作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nステータス: 確定済み\nLINE連携: {link_url}"
                     )
                 except Exception as e:
-                    logger.warning(f"LINE通知の送信に失敗しました: {e}")
+                    logger.warning(f"管理者LINE通知の送信に失敗しました: {e}")
+
+                # 新規顧客へのメール通知（メールアドレスが設定されている場合）
+                if customer.email:
+                    try:
+                        from .notifications import send_reservation_confirmation_email
+                        send_reservation_confirmation_email(customer, reservation, service)
+                    except Exception as e:
+                        logger.warning(f"顧客メール通知の送信に失敗しました: {e}")
 
                 return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
 
@@ -1039,19 +1150,39 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                 reservation = Reservation.objects.create(
                     customer=customer,
                     service=service,
+                    salon=service.salon,  # サービスが属するサロンを設定
                     start_time=start_datetime,
                     end_time=end_datetime,
-                    status='pending'
+                    status='confirmed'  # 管理画面からの予約は確定状態
                 )
 
                 # 管理LINE通知
                 try:
                     from .notifications import send_admin_line_notification
                     send_admin_line_notification(
-                        f"予約が作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nサービス: {service.name}"
+                        f"予約が確定済みで作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nサービス: {service.name}\nステータス: 確定済み"
                     )
                 except Exception as e:
-                    logger.warning(f"LINE通知の送信に失敗しました: {e}")
+                    logger.warning(f"管理者LINE通知の送信に失敗しました: {e}")
+
+                # 既存顧客へのLINE通知
+                try:
+                    from .notifications import send_customer_line_notification
+                    formatted_date = start_datetime.strftime('%Y年%m月%d日 %H:%M')
+                    customer_message = f"""
+                                        {customer.name}様
+                                        予約が確定いたしました。
+
+                                        【予約詳細】
+                                        ・サービス: {service.name}
+                                        ・予約日時: {formatted_date}
+                                        ・所要時間: {service.duration_minutes}分
+
+                                        当日のご来店をお待ちしております。
+                                        """
+                    send_customer_line_notification(customer, customer_message)
+                except Exception as e:
+                    logger.warning(f"顧客LINE通知の送信に失敗しました: {e}")
 
                 return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
 
