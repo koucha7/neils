@@ -721,9 +721,60 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='generate-line-link')
     def generate_line_link(self, request, pk=None):
         """指定された社員のLINE連携用リンクを生成する"""
+        from django.db import connection
+        
         try:
             user = self.get_object()
-            profile, created = UserProfile.objects.get_or_create(user=user)
+            logger.info(f"取得したユーザー: {user.id}, {user.username}, type: {type(user)}")
+            logger.info(f"ユーザーモデル: {user.__class__.__module__}.{user.__class__.__name__}")
+            
+            # データベースの制約を確認
+            with connection.cursor() as cursor:
+                # UserProfileテーブルの制約を確認
+                cursor.execute("""
+                    SELECT sql FROM sqlite_master 
+                    WHERE type='table' AND name='reservations_userprofile';
+                """)
+                table_sql = cursor.fetchone()
+                if table_sql:
+                    logger.info(f"UserProfileテーブル定義: {table_sql[0]}")
+                
+                # 現在のユーザーテーブルを確認
+                cursor.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name LIKE '%user%';
+                """)
+                user_tables = cursor.fetchall()
+                logger.info(f"ユーザー関連テーブル: {user_tables}")
+            
+            # UserProfileが存在するか確認し、存在しない場合は作成
+            try:
+                profile = UserProfile.objects.get(user_id=user.id)
+                logger.info(f"既存のUserProfileを取得: {profile.id}")
+            except UserProfile.DoesNotExist:
+                logger.info(f"UserProfileが存在しないため作成します: user_id={user.id}")
+                
+                # より安全な方法で作成を試行
+                try:
+                    profile = UserProfile(user_id=user.id)
+                    profile.save()
+                    logger.info(f"新しいUserProfileを作成: {profile.id}")
+                except Exception as create_error:
+                    logger.error(f"UserProfile作成エラー: {create_error}")
+                    # 代替案：直接SQLで作成を試行
+                    with connection.cursor() as cursor:
+                        try:
+                            cursor.execute("""
+                                INSERT INTO reservations_userprofile (user_id, line_user_id, line_registration_token)
+                                VALUES (?, ?, ?)
+                            """, [user.id, None, str(uuid.uuid4())])
+                            profile = UserProfile.objects.get(user_id=user.id)
+                            logger.info(f"SQLで直接UserProfileを作成: {profile.id}")
+                        except Exception as sql_error:
+                            logger.error(f"SQL作成エラー: {sql_error}")
+                            raise Exception(f"UserProfile作成に失敗しました: {str(sql_error)}")
+            
+            # 登録トークンを更新
             profile.line_registration_token = uuid.uuid4()
             profile.save()
             
@@ -737,7 +788,7 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"LINE連携URL生成エラー: {e}", exc_info=True)
             return Response(
-                {'error': 'LINE連携URLの生成に失敗しました。'},
+                {'error': f'LINE連携URLの生成に失敗しました: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
@@ -756,9 +807,58 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         """
         指定された社員のLINE連携用リンクを生成する
         """
+        from django.db import connection
+        
         try:
             user = self.get_object()
-            profile, created = UserProfile.objects.get_or_create(user=user)
+            logger.info(f"取得したユーザー: {user.id}, {user.username}, type: {type(user)}")
+            logger.info(f"ユーザーモデル: {user.__class__.__module__}.{user.__class__.__name__}")
+            
+            # データベースの制約を確認
+            with connection.cursor() as cursor:
+                # UserProfileテーブルの制約を確認
+                cursor.execute("""
+                    SELECT sql FROM sqlite_master 
+                    WHERE type='table' AND name='reservations_userprofile';
+                """)
+                table_sql = cursor.fetchone()
+                if table_sql:
+                    logger.info(f"UserProfileテーブル定義: {table_sql[0]}")
+                
+                # 現在のユーザーテーブルを確認
+                cursor.execute("""
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name LIKE '%user%';
+                """)
+                user_tables = cursor.fetchall()
+                logger.info(f"ユーザー関連テーブル: {user_tables}")
+            
+            # UserProfileが存在するか確認し、存在しない場合は作成
+            try:
+                profile = UserProfile.objects.get(user_id=user.id)
+                logger.info(f"既存のUserProfileを取得: {profile.id}")
+            except UserProfile.DoesNotExist:
+                logger.info(f"UserProfileが存在しないため作成します: user_id={user.id}")
+                
+                # より安全な方法で作成を試行
+                try:
+                    profile = UserProfile(user_id=user.id)
+                    profile.save()
+                    logger.info(f"新しいUserProfileを作成: {profile.id}")
+                except Exception as create_error:
+                    logger.error(f"UserProfile作成エラー: {create_error}")
+                    # 代替案：直接SQLで作成を試行
+                    with connection.cursor() as cursor:
+                        try:
+                            cursor.execute("""
+                                INSERT INTO reservations_userprofile (user_id, line_user_id, line_registration_token)
+                                VALUES (?, ?, ?)
+                            """, [user.id, None, str(uuid.uuid4())])
+                            profile = UserProfile.objects.get(user_id=user.id)
+                            logger.info(f"SQLで直接UserProfileを作成: {profile.id}")
+                        except Exception as sql_error:
+                            logger.error(f"SQL作成エラー: {sql_error}")
+                            raise Exception(f"UserProfile作成に失敗しました: {str(sql_error)}")
             
             # 新しい登録トークンを生成して保存
             token = uuid.uuid4()
@@ -777,7 +877,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"LINE連携URL生成エラー: {e}", exc_info=True)
             return Response(
-                {'error': 'LINE連携URLの生成に失敗しました。'},
+                {'error': f'LINE連携URLの生成に失敗しました: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
