@@ -910,7 +910,7 @@ class LineWebhookView(APIView):
             logger.info(f"新規顧客を作成しました: {line_user_id}")
 
         # 顧客詳細ページへのリンクを生成
-        base_url = os.environ.get('ADMIN_CUSTOMER_DETAIL_URL', 'https://JELLO.nail.com/admin/customers/')
+        base_url = os.environ.get('ADMIN_CUSTOMER_DETAIL_URL', 'https://jello-nail.com/admin/customers/')
         detail_url = f"{base_url}{customer.id}"
 
         if message_type == 'text':
@@ -1386,4 +1386,70 @@ def send_bulk_message(request):
         except Exception as e:
             logger.error(f"顧客 {customer.id} への一括送信失敗: {e}")
     return Response({'status': 'ok'}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def send_staff_notification(request):
+    """
+    LINE連携した全職員に通知を送信するAPI
+    """
+    text = request.data.get('text')
+    image_file = request.FILES.get('image')
+    target_staff_id = request.data.get('target_staff_id')  # 特定の職員に送信する場合
+
+    if not text and not image_file:
+        return Response({'error': 'テキストまたは画像を指定してください。'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        if target_staff_id:
+            # 特定の職員に送信
+            from .notifications import send_staff_line_notification
+            if text:
+                success, result = send_staff_line_notification(target_staff_id, text)
+                if not success:
+                    return Response({'error': f'送信失敗: {result}'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # 全職員に送信
+            if text:
+                from .notifications import send_admin_line_notification
+                success, result = send_admin_line_notification(text)
+                if not success:
+                    return Response({'error': f'送信失敗: {result}'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if image_file:
+                # 画像をGCSにアップロード
+                if storage:
+                    storage_client = storage.Client()
+                    bucket = storage_client.bucket('JELLO-line-images')
+                    file_name = f'staff_notification/{uuid.uuid4()}_{image_file.name}'
+                    blob = bucket.blob(file_name)
+                    blob.upload_from_file(image_file)
+                    image_url = blob.public_url
+
+                    from .notifications import send_admin_line_image
+                    success, result = send_admin_line_image(image_url)
+                    if not success:
+                        return Response({'error': f'画像送信失敗: {result}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'status': '通知を送信しました。'}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"職員通知送信中にエラー: {e}", exc_info=True)
+        return Response({'error': 'サーバー内部でエラーが発生しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def get_staff_line_status(request):
+    """
+    職員のLINE連携状況を取得するAPI
+    """
+    try:
+        from .notifications import get_staff_line_status
+        status_list = get_staff_line_status()
+        return Response({'staff_status': status_list}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"職員ステータス取得中にエラー: {e}", exc_info=True)
+        return Response({'error': 'サーバー内部でエラーが発生しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     

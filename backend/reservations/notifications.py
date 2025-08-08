@@ -36,23 +36,84 @@ def send_line_push_message(user_id, messages, channel_access_token):
 
 def send_admin_line_notification(message):
     """
-    【管理者向け】テキストメッセージを管理者に送信する専用のショートカット関数。
+    【管理者向け】テキストメッセージをLINE連携した全職員に送信する関数。
     """
-    admin_user_id = os.environ.get('ADMIN_LINE_USER_ID')
-    channel_access_token = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
+    from .models import UserProfile
     
-    return send_line_push_message(
-        user_id=admin_user_id,
-        messages=message,
-        channel_access_token=channel_access_token
-    )
+    # LINE連携済みの全職員を取得
+    staff_profiles = UserProfile.objects.filter(
+        line_user_id__isnull=False,
+        user__is_staff=True
+    ).exclude(line_user_id='')
+    
+    if not staff_profiles.exists():
+        print("警告: LINE連携済みの職員が見つかりません。")
+        # フォールバック：環境変数の管理者に送信
+        admin_user_id = os.environ.get('ADMIN_LINE_USER_ID')
+        if admin_user_id:
+            channel_access_token = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
+            return send_line_push_message(
+                user_id=admin_user_id,
+                messages=message,
+                channel_access_token=channel_access_token
+            )
+        return False, "送信先の職員が見つかりません"
+    
+    channel_access_token = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
+    success_count = 0
+    total_count = staff_profiles.count()
+    
+    for profile in staff_profiles:
+        try:
+            success, result = send_line_push_message(
+                user_id=profile.line_user_id,
+                messages=message,
+                channel_access_token=channel_access_token
+            )
+            if success:
+                success_count += 1
+                print(f"職員 {profile.user.username} への送信成功")
+            else:
+                print(f"職員 {profile.user.username} への送信失敗: {result}")
+        except Exception as e:
+            print(f"職員 {profile.user.username} への送信中にエラー: {e}")
+    
+    print(f"職員への一括通知完了: {success_count}/{total_count} 件成功")
+    return success_count > 0, f"{success_count}/{total_count} 件送信成功"
 
 def send_admin_line_image(image_url):
     """
-    【管理者向け】画像メッセージを管理者に送信する専用のショートカット関数。
+    【管理者向け】画像メッセージをLINE連携した全職員に送信する関数。
     """
-    admin_user_id = os.environ.get('ADMIN_LINE_USER_ID')
+    from .models import UserProfile
+    
+    # LINE連携済みの全職員を取得
+    staff_profiles = UserProfile.objects.filter(
+        line_user_id__isnull=False,
+        user__is_staff=True
+    ).exclude(line_user_id='')
+    
+    if not staff_profiles.exists():
+        print("警告: LINE連携済みの職員が見つかりません。")
+        # フォールバック：環境変数の管理者に送信
+        admin_user_id = os.environ.get('ADMIN_LINE_USER_ID')
+        if admin_user_id:
+            channel_access_token = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
+            image_message = [{
+                'type': 'image',
+                'originalContentUrl': image_url,
+                'previewImageUrl': image_url
+            }]
+            return send_line_push_message(
+                user_id=admin_user_id,
+                messages=image_message,
+                channel_access_token=channel_access_token
+            )
+        return False, "送信先の職員が見つかりません"
+    
     channel_access_token = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
+    success_count = 0
+    total_count = staff_profiles.count()
     
     image_message = [{
         'type': 'image',
@@ -60,11 +121,75 @@ def send_admin_line_image(image_url):
         'previewImageUrl': image_url
     }]
     
-    return send_line_push_message(
-        user_id=admin_user_id,
-        messages=image_message,
-        channel_access_token=channel_access_token
-    )
+    for profile in staff_profiles:
+        try:
+            success, result = send_line_push_message(
+                user_id=profile.line_user_id,
+                messages=image_message,
+                channel_access_token=channel_access_token
+            )
+            if success:
+                success_count += 1
+                print(f"職員 {profile.user.username} への画像送信成功")
+            else:
+                print(f"職員 {profile.user.username} への画像送信失敗: {result}")
+        except Exception as e:
+            print(f"職員 {profile.user.username} への画像送信中にエラー: {e}")
+    
+    print(f"職員への一括画像通知完了: {success_count}/{total_count} 件成功")
+    return success_count > 0, f"{success_count}/{total_count} 件送信成功"
+
+
+def send_staff_line_notification(staff_user_id, message):
+    """
+    【職員向け】特定の職員にLINEメッセージを送信する関数
+    """
+    from .models import UserProfile
+    
+    try:
+        profile = UserProfile.objects.get(
+            user_id=staff_user_id,
+            line_user_id__isnull=False,
+            user__is_staff=True
+        )
+        
+        channel_access_token = os.environ.get('ADMIN_LINE_CHANNEL_ACCESS_TOKEN')
+        
+        return send_line_push_message(
+            user_id=profile.line_user_id,
+            messages=message,
+            channel_access_token=channel_access_token
+        )
+        
+    except UserProfile.DoesNotExist:
+        print(f"職員ID {staff_user_id} のLINE連携が見つかりません。")
+        return False, "LINE連携なし"
+    except Exception as e:
+        print(f"職員への個別通知でエラー: {e}")
+        return False, str(e)
+
+
+def get_staff_line_status():
+    """
+    職員のLINE連携状況を取得する関数
+    """
+    from .models import UserProfile
+    
+    staff_profiles = UserProfile.objects.filter(
+        user__is_staff=True
+    ).select_related('user')
+    
+    status_list = []
+    for profile in staff_profiles:
+        status_list.append({
+            'user_id': profile.user.id,
+            'username': profile.user.username,
+            'full_name': getattr(profile.user, 'full_name', profile.user.username),
+            'is_line_linked': bool(profile.line_user_id),
+            'line_user_id': profile.line_user_id if profile.line_user_id else None
+        })
+    
+    return status_list
 
 
 def send_customer_line_notification(customer, message):

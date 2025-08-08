@@ -168,7 +168,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:5173',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://JELLO.nail.com', # 本番環境用
+    'https://jello-nail.com', # 本番環境用
 ]
 
 CORS_ALLOW_CREDENTIALS = True
