@@ -53,8 +53,8 @@ const LineHistoryPage: React.FC = () => {
     query: initialQuery,
   });
 
-  // クエリパラメータがある場合はフィルターを開いた状態にする
-  const [isFilterOpen, setIsFilterOpen] = useState(Boolean(initialQuery));
+  // 検索フィルターは常に閉じた状態で開始
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
   const { user } = useAdminAuth();
