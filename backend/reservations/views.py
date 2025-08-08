@@ -1170,16 +1170,16 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                     from .notifications import send_customer_line_notification
                     formatted_date = start_datetime.strftime('%Y年%m月%d日 %H:%M')
                     customer_message = f"""
-                                        {customer.name}様
-                                        予約が確定いたしました。
+{customer.name}様
+予約が確定いたしました。
 
-                                        【予約詳細】
-                                        ・サービス: {service.name}
-                                        ・予約日時: {formatted_date}
-                                        ・所要時間: {service.duration_minutes}分
+【予約詳細】
+・サービス: {service.name}
+・予約日時: {formatted_date}
+・所要時間: {service.duration_minutes}分
 
-                                        当日のご来店をお待ちしております。
-                                        """
+当日のご来店をお待ちしております。
+"""
                     send_customer_line_notification(customer, customer_message)
                 except Exception as e:
                     logger.warning(f"顧客LINE通知の送信に失敗しました: {e}")
