@@ -26,9 +26,24 @@ const AdminPanel: React.FC = () => {
   const { isLoggedIn, logout, user } = useAdminAuth();
   const location = useLocation(); // ★ 3. 現在のパスを取得するためのフック
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 768);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(prev => !prev);
+  }, []);
+
+  // ウィンドウサイズの変更を監視
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setIsSidebarOpen(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -80,9 +95,9 @@ const AdminPanel: React.FC = () => {
       ];
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 font-sans overflow-hidden">
-      {/* ヘッダー */}
-      <header className="md:hidden bg-white shadow-sm border-b border-gray-200 z-40 flex-shrink-0">
+    <div className="flex flex-col h-screen bg-gray-100 font-sans">
+      {/* ヘッダー - モバイル時のみ表示・固定位置 */}
+      <header className={`md:hidden bg-white shadow-sm border-b border-gray-200 z-50 ${isMobile ? 'fixed' : 'hidden'} top-0 left-0 right-0`}>
         <div className="flex items-center justify-between px-4 py-3">
           <button
             onClick={toggleSidebar}
@@ -95,26 +110,33 @@ const AdminPanel: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex flex-1 relative overflow-hidden">
+      <div 
+        className="flex flex-1"
+        style={{ marginTop: isMobile ? '64px' : '0' }}
+      >
         {/* オーバーレイ（モバイル時のサイドバー背景） */}
-        {isSidebarOpen && (
+        {isSidebarOpen && isMobile && (
           <div 
-            className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+            className="fixed inset-0 bg-black bg-opacity-50 z-30"
             onClick={() => setIsSidebarOpen(false)}
+            style={{ top: '64px' }}
           ></div>
         )}
 
         <aside
           className={`
             w-64 bg-gray-800 text-white flex flex-col transition-all duration-300 z-40
-            md:relative md:translate-x-0
-            ${isSidebarOpen 
-              ? "fixed left-0 top-0 h-full translate-x-0" 
-              : "fixed left-0 top-0 h-full -translate-x-full md:flex"
+            ${isMobile 
+              ? `fixed left-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+              : 'relative translate-x-0'
             }
           `}
+          style={{ 
+            top: isMobile ? '64px' : '0',
+            height: isMobile ? 'calc(100vh - 64px)' : '100vh'
+          }}
         >
-          <div className="p-4 text-lg font-bold border-b border-gray-700 flex-shrink-0">
+          <div className={`p-4 text-lg font-bold border-b border-gray-700 flex-shrink-0 ${isMobile ? 'hidden' : 'block'}`}>
             JELLO
           </div>
           <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
@@ -123,7 +145,7 @@ const AdminPanel: React.FC = () => {
               <Link
                 key={item.to}
                 to={item.to}
-                onClick={() => window.innerWidth < 768 && setIsSidebarOpen(false)}
+                onClick={() => isMobile && setIsSidebarOpen(false)}
                 className={`w-full text-left flex items-center px-4 py-2 rounded-md transition-colors ${
                   // 現在のURLがメニューのパスで始まるかでアクティブ状態を判断
                   location.pathname.startsWith(item.to) ? "bg-gray-700" : "hover:bg-gray-700"
@@ -141,8 +163,8 @@ const AdminPanel: React.FC = () => {
           </div>
         </aside>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-4 sm:p-8">
+        <main className="flex-1 overflow-y-auto min-h-0 mobile-scroll-container">
+          <div className={`p-4 sm:p-8 ${isMobile ? 'pb-20' : 'pb-8'}`}>
             <Routes>
               <Route path="/" element={<ReservationList />} />
               <Route path="reservations" element={<ReservationList />} />

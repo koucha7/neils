@@ -214,9 +214,9 @@ const LineHistoryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ▼▼▼【4. メッセージ表示部分を修正】▼▼▼ */}
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-4 border rounded-md bg-gray-100 space-y-4">
+      {/* メッセージ表示部分 - 高さを動的に調整 */}
+      <div className="flex-1 flex flex-col" style={{ minHeight: 'calc(100vh - 200px)' }}>
+        <div className="flex-1 overflow-y-auto p-4 border rounded-md bg-gray-100 space-y-4" style={{ maxHeight: 'calc(100vh - 300px)' }}>
         {(() => {
           const rendered: JSX.Element[] = [];
           let prevDate: Date | null = null;
@@ -334,7 +334,7 @@ const LineHistoryPage: React.FC = () => {
         })()}
         <div ref={messagesEndRef} />
         </div>
-        <div className="w-full flex flex-col items-center bg-white border-t pt-4 pb-6 space-y-4">
+        <div className="w-full flex flex-col items-center bg-white border-t pt-4 pb-6 space-y-4 sticky bottom-0">
           {/* 職員通知ボタン */}
           {!isStaffNotificationOpen ? (
             <div className="flex gap-4">

@@ -13,6 +13,7 @@ router.register(r'salons', views.SalonViewSet, basename='salon')
 router.register(r'services', views.ServiceViewSet, basename='service')
 router.register(r'reservations', views.ReservationViewSet, basename='reservation')
 router.register(r'admin/users', views.AdminUserManagementViewSet, basename='admin-user')
+router.register(r'admin/staff', views.AdminUserViewSet, basename='admin-staff') # 別のパスで登録
 router.register(r'admin/reservations', views.AdminReservationViewSet, basename='admin-reservation')
 router.register(r'admin/customers', views.AdminCustomerViewSet, basename='admin-customer')
 """ print("--- DRF Router Registered URLs ---")

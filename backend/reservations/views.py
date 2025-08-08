@@ -721,13 +721,25 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='generate-line-link')
     def generate_line_link(self, request, pk=None):
         """指定された社員のLINE連携用リンクを生成する"""
-        user = self.get_object()
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.line_registration_token = uuid.uuid4()
-        profile.save()
-        base_url = os.environ.get('FRONTEND_ADMIN_URL', 'http://localhost:5173')
-        registration_url = f"{base_url}/register-line/{profile.line_registration_token}"
-        return Response({'registration_link': registration_url})
+        try:
+            user = self.get_object()
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            profile.line_registration_token = uuid.uuid4()
+            profile.save()
+            
+            # 環境変数からフロントエンドのURLを取得
+            base_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+            registration_url = f"{base_url}/register-line/{profile.line_registration_token}"
+            
+            logger.info(f"LINE連携URL生成成功: ユーザー{user.username} - {registration_url}")
+            return Response({'registration_link': registration_url})
+            
+        except Exception as e:
+            logger.error(f"LINE連携URL生成エラー: {e}", exc_info=True)
+            return Response(
+                {'error': 'LINE連携URLの生成に失敗しました。'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
 class AdminUserViewSet(viewsets.ModelViewSet):
     """
@@ -736,6 +748,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all().order_by('date_joined')
     serializer_class = AdminUserSerializer
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsAdminUser] # 管理者のみアクセス可能
 
     @action(detail=True, methods=['post'], url_path='generate-line-link')
@@ -743,26 +756,30 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         """
         指定された社員のLINE連携用リンクを生成する
         """
-        user = self.get_object()
-        profile, created = UserProfile.objects.get_or_create(user=user)
-        
-        # 新しい登録トークンを生成して保存
-        token = uuid.uuid4()
-        profile.line_registration_token = token
-        profile.save()
-        
-        # ▼▼▼【ここから修正】▼▼▼
-        # 環境変数からフロントエンドのURLを取得
-        # VITE_APP_FRONTEND_URL のような、より明確な名前の環境変数を参照するのが望ましい
-        base_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173') 
-        
-        # フロントエンドに作成した連携用ページのパスを正しく指定
-        registration_url = f"{base_url}/register-line/{token}"
-        
-        print(f"生成された連携URL: {registration_url}") # デバッグ用にURLをコンソールに出力
-        # ▲▲▲【修正ここまで】▲▲▲
-        
-        return Response({'registration_link': registration_url})
+        try:
+            user = self.get_object()
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            
+            # 新しい登録トークンを生成して保存
+            token = uuid.uuid4()
+            profile.line_registration_token = token
+            profile.save()
+            
+            # 環境変数からフロントエンドのURLを取得
+            base_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173') 
+            
+            # フロントエンドに作成した連携用ページのパスを正しく指定
+            registration_url = f"{base_url}/register-line/{token}"
+            
+            logger.info(f"生成された連携URL: {registration_url}")
+            return Response({'registration_link': registration_url})
+            
+        except Exception as e:
+            logger.error(f"LINE連携URL生成エラー: {e}", exc_info=True)
+            return Response(
+                {'error': 'LINE連携URLの生成に失敗しました。'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     def create(self, request, *args, **kwargs):
         """
