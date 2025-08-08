@@ -123,8 +123,10 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@yourdomain.co
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # 15分に短縮
+    'REFRESH_TOKEN_LIFETIME': timedelta(hours=1),    # 1時間に短縮
+    'ROTATE_REFRESH_TOKENS': True,  # リフレッシュトークンを回転させる
+    'BLACKLIST_AFTER_ROTATION': True,  # 古いリフレッシュトークンをブラックリストに追加
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id', # ★ 'line_user_id' に変更していた場合は元に戻す！
     'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
