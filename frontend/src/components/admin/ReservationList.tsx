@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import api from '../../api/axiosConfig';
 import { X, Loader2, SlidersHorizontal, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import NewReservationModal from './NewReservationModal';
 
 // 予約データの型定義
 interface Reservation {
@@ -44,7 +45,26 @@ const ReservationList: React.FC = () => {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
+
+  // ステータスを日本語に変換する関数
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'confirmed':
+        return '確定';
+      case 'pending':
+        return '保留中';
+      case 'cancelled':
+        return 'キャンセル';
+      case 'completed':
+        return '完了';
+      case 'no_show':
+        return '無断欠席';
+      default:
+        return status;
+    }
+  };
 
   // --- フィルター用のState ---
   const [startDate, setStartDate] = useState<Date | null>(null);
@@ -120,14 +140,23 @@ const ReservationList: React.FC = () => {
       {/* ▼▼▼【ここからが修正箇所】▼▼▼ */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-800">予約一覧</h1>
-        {/* フィルターの表示/非表示を切り替えるボタン */}
-        <button 
-          onClick={() => setIsFilterOpen(!isFilterOpen)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border rounded-lg shadow-sm hover:bg-gray-50"
-        >
-          {isFilterOpen ? <ChevronUp size={16} /> : <SlidersHorizontal size={16} />}
-          <span>フィルター</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 新規作成ボタン */}
+          <button 
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700"
+          >
+            <span>新規作成</span>
+          </button>
+          {/* フィルターの表示/非表示を切り替えるボタン */}
+          <button 
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border rounded-lg shadow-sm hover:bg-gray-50"
+          >
+            {isFilterOpen ? <ChevronUp size={16} /> : <SlidersHorizontal size={16} />}
+            <span>フィルター</span>
+          </button>
+        </div>
       </div>
 
       {/* フィルターセクション（isFilterOpenの状態に応じて表示を切り替え） */}
@@ -204,7 +233,7 @@ const ReservationList: React.FC = () => {
               <p className="font-semibold text-gray-800">{reservation.customer_name}</p>
               <p className="text-sm text-gray-600">{reservation.service_name}</p>
               <span className={`mt-2 inline-block px-2 py-1 text-xs font-semibold rounded-full ${getStatusClass(reservation.status)}`}>
-                {reservation.status}
+                {getStatusLabel(reservation.status)}
               </span>
             </div>
             {/* ▼▼▼【スマホ用の日付表示を修正】▼▼▼ */}
@@ -247,7 +276,7 @@ const ReservationList: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap">{reservation.service_name}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(reservation.status)}`}>
-                    {reservation.status}
+                    {getStatusLabel(reservation.status)}
                   </span>
                 </td>
               </tr>
@@ -255,6 +284,11 @@ const ReservationList: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* 新規予約作成モーダル */}
+      {showModal && (
+        <NewReservationModal onClose={() => setShowModal(false)} />
+      )}
     </div>
   );
 };

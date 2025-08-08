@@ -19,6 +19,7 @@ from reservations.models import User
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.mail import send_mail
+from django.db import transaction
 from django.db.models import Q, Sum, Count, Max, OuterRef, Subquery
 from django.db.models.functions import TruncMonth, TruncDate
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
@@ -33,15 +34,28 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import action
 
 # --- Google Cloud & LINE SDK ---
-from google.cloud import storage
-from google.auth import default as google_auth_default
-from google.auth.exceptions import GoogleAuthError
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from linebot import LineBotApi
-from linebot.models import TextSendMessage, ImageSendMessage
+try:
+    from google.cloud import storage
+    from google.auth import default as google_auth_default
+    from google.auth.exceptions import GoogleAuthError
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+except ImportError:
+    # 開発環境ではGoogle Cloud関連のライブラリがないので無視
+    storage = None
+    google_auth_default = None
+
+try:
+    from linebot import LineBotApi
+    from linebot.models import TextSendMessage, ImageSendMessage
+except ImportError:
+    # 開発環境ではLINE Bot SDKがないので無視
+    LineBotApi = None
+    TextSendMessage = None
+    ImageSendMessage = None
 
 # --- Local App Imports ---
 from .authentication import CustomerJWTAuthentication
@@ -59,8 +73,18 @@ from .serializers import (
 
 # --- Global Initializations ---
 logger = logging.getLogger(__name__)
-line_bot_api = LineBotApi(settings.ADMIN_LINE_CHANNEL_ACCESS_TOKEN)
-customer_ine_bot_api = LineBotApi(settings.CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN)
+
+# LINE Bot APIの初期化（開発環境では無効化）
+line_bot_api = None
+customer_ine_bot_api = None
+
+if LineBotApi:
+    try:
+        line_bot_api = LineBotApi(settings.ADMIN_LINE_CHANNEL_ACCESS_TOKEN)
+        customer_ine_bot_api = LineBotApi(settings.CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN)
+    except Exception:
+        # 設定値がない場合は無効化
+        pass
 
 # ==============================================================================
 # Public-Facing ViewSets (No Authentication Required)
@@ -172,6 +196,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
     
     def add_event_to_google_calendar(self, reservation):
         """Googleカレンダーに予約イベントを追加するヘルパーメソッド"""
+        if not google_auth_default:
+            print("Google Cloud SDKが利用できません")
+            return
+            
         SCOPES = ['https://www.googleapis.com/auth/calendar']
         CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 
@@ -776,6 +804,10 @@ class LineWebhookView(APIView):
     def handle_image_message(self, customer, message_id):
         """画像メッセージをGCSに保存し、管理者に転送する"""
         try:
+            if not line_bot_api or not storage:
+                logger.warning("LINE Bot API または Google Cloud Storage が利用できません")
+                return
+                
             # LINEサーバーから画像コンテンツを取得
             message_content = line_bot_api.get_message_content(message_id)
             
@@ -883,6 +915,10 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
 
     def add_event_to_google_calendar(self, reservation):
         """Googleカレンダーに予約イベントを追加する"""
+        if not google_auth_default:
+            logger.warning("Google Cloud SDKが利用できません。")
+            return
+            
         CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
         if not CALENDAR_ID:
             logger.warning("環境変数 GOOGLE_CALENDAR_ID が設定されていません。")
@@ -902,6 +938,106 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
             logger.info(f"Googleカレンダーにイベントを登録しました (予約番号: {reservation.reservation_number})")
         except Exception as e:
             logger.error(f"Google認証またはAPI呼び出しに失敗しました。詳細: {e}", exc_info=True)
+
+    @action(detail=False, methods=['post'], url_path='create-with-new-customer')
+    def create_with_new_customer(self, request):
+        """新規顧客＋予約を同時に作成（管理画面の「新規作成」ボタン用）"""
+        name = request.data.get('name')
+        phone = request.data.get('phone_number')
+        email = request.data.get('email')
+        service_id = request.data.get('service_id')
+        start_time = request.data.get('start_time')
+
+        if not all([name, service_id, start_time]):
+            return Response({'error': '必須項目が不足しています。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                # 新規顧客作成
+                customer = Customer.objects.create(
+                    name=name,
+                    phone_number=phone or '',
+                    email=email or ''
+                )
+
+                # 予約作成
+                service = Service.objects.get(id=service_id)
+                start_datetime = datetime.fromisoformat(start_time)
+                duration = timedelta(minutes=service.duration_minutes)
+                end_datetime = start_datetime + duration
+
+                reservation = Reservation.objects.create(
+                    customer=customer,
+                    service=service,
+                    start_time=start_datetime,
+                    end_time=end_datetime,
+                    status='pending'
+                )
+
+                # LINE連携用URL生成＆管理LINE通知
+                try:
+                    base_url = os.environ.get('FRONTEND_URL', 'https://your-frontend-url')
+                    link_url = f"{base_url}/link-customer/{customer.id}"
+                    from .notifications import send_admin_line_notification
+                    send_admin_line_notification(
+                        f"新規顧客予約が作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nLINE連携: {link_url}"
+                    )
+                except Exception as e:
+                    logger.warning(f"LINE通知の送信に失敗しました: {e}")
+
+                return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
+
+        except Service.DoesNotExist:
+            return Response({'error': '指定されたサービスが見つかりません。'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"新規顧客予約作成エラー: {e}")
+            return Response({'error': '予約の作成に失敗しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='create-for-customer')
+    def create_for_customer(self, request):
+        """既存顧客の予約を作成（顧客詳細画面の「予約作成」ボタン用）"""
+        customer_id = request.data.get('customer_id')
+        service_id = request.data.get('service_id')
+        start_time = request.data.get('start_time')
+
+        if not all([customer_id, service_id, start_time]):
+            return Response({'error': '必須項目が不足しています。'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                customer = Customer.objects.get(id=customer_id)
+                service = Service.objects.get(id=service_id)
+                
+                start_datetime = datetime.fromisoformat(start_time)
+                duration = timedelta(minutes=service.duration_minutes)
+                end_datetime = start_datetime + duration
+
+                reservation = Reservation.objects.create(
+                    customer=customer,
+                    service=service,
+                    start_time=start_datetime,
+                    end_time=end_datetime,
+                    status='pending'
+                )
+
+                # 管理LINE通知
+                try:
+                    from .notifications import send_admin_line_notification
+                    send_admin_line_notification(
+                        f"予約が作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nサービス: {service.name}"
+                    )
+                except Exception as e:
+                    logger.warning(f"LINE通知の送信に失敗しました: {e}")
+
+                return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
+
+        except Customer.DoesNotExist:
+            return Response({'error': '指定された顧客が見つかりません。'}, status=status.HTTP_400_BAD_REQUEST)
+        except Service.DoesNotExist:
+            return Response({'error': '指定されたサービスが見つかりません。'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"既存顧客予約作成エラー: {e}")
+            return Response({'error': '予約の作成に失敗しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 logger = logging.getLogger(__name__)
 
@@ -968,7 +1104,8 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
 
         try:
             if text:
-                customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
+                if customer_ine_bot_api and TextSendMessage:
+                    customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
                 LineMessage.objects.create(
                      customer=customer,
                      message=text,
@@ -976,24 +1113,26 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
                 )
 
             if image_file:
-                storage_client = storage.Client()
-                bucket = storage_client.bucket('JELLO-line-images') # ★ご自身のGCSバケット名
-                
-                file_name = f'admin_sent/{uuid.uuid4()}_{image_file.name}'
-                blob = bucket.blob(file_name)
-                
-                blob.upload_from_file(image_file)
-                image_url = blob.public_url
+                if storage:
+                    storage_client = storage.Client()
+                    bucket = storage_client.bucket('JELLO-line-images') # ★ご自身のGCSバケット名
+                    
+                    file_name = f'admin_sent/{uuid.uuid4()}_{image_file.name}'
+                    blob = bucket.blob(file_name)
+                    
+                    blob.upload_from_file(image_file)
+                    image_url = blob.public_url
 
-                customer_ine_bot_api.push_message(
-                    customer.line_user_id,
-                    ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
-                )
-                LineMessage.objects.create(
-                     customer=customer,
-                     image_url=image_url,
-                     sender_type='admin'
-                )
+                    if customer_ine_bot_api and ImageSendMessage:
+                        customer_ine_bot_api.push_message(
+                            customer.line_user_id,
+                            ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
+                        )
+                    LineMessage.objects.create(
+                         customer=customer,
+                         image_url=image_url,
+                         sender_type='admin'
+                    )
 
             return Response({'status': 'メッセージを送信しました。'}, status=status.HTTP_200_OK)
 
@@ -1060,27 +1199,30 @@ def send_bulk_message(request):
 
     image_url = None
     if image_file:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket('JELLO-line-images')  # ご自身のGCSバケット名
-        file_name = f'admin_bulk/{uuid.uuid4()}_{image_file.name}'
-        blob = bucket.blob(file_name)
-        blob.upload_from_file(image_file)
-        image_url = blob.public_url
+        if storage:
+            storage_client = storage.Client()
+            bucket = storage_client.bucket('JELLO-line-images')  # ご自身のGCSバケット名
+            file_name = f'admin_bulk/{uuid.uuid4()}_{image_file.name}'
+            blob = bucket.blob(file_name)
+            blob.upload_from_file(image_file)
+            image_url = blob.public_url
 
     for customer in customers:
         try:
             if text:
-                customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
+                if customer_ine_bot_api and TextSendMessage:
+                    customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
                 LineMessage.objects.create(
                     customer=None,
                     message=text,
                     sender_type='admin'
                 )
             if image_url:
-                customer_ine_bot_api.push_message(
-                    customer.line_user_id,
-                    ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
-                )
+                if customer_ine_bot_api and ImageSendMessage:
+                    customer_ine_bot_api.push_message(
+                        customer.line_user_id,
+                        ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
+                    )
                 LineMessage.objects.create(
                     customer=None,
                     image_url=image_url,
@@ -1089,3 +1231,4 @@ def send_bulk_message(request):
         except Exception as e:
             logger.error(f"顧客 {customer.id} への一括送信失敗: {e}")
     return Response({'status': 'ok'}, status=status.HTTP_200_OK)
+    

@@ -638,3 +638,6 @@ backend/test_env.py
 /node_modules/.bin
 /node_modules
 /backend/create_test_data.py
+/backend/jello_backend_project/__pycache__/*.pyc
+/backend/reservations/__pycache__/*.pyc
+/backend/reservations/migrations/__pycache__/*.pyc

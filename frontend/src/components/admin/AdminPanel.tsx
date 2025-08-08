@@ -80,66 +80,90 @@ const AdminPanel: React.FC = () => {
       ];
 
   return (
-    <div className="flex min-h-screen bg-gray-100 font-sans">
-      <aside
-        className={`w-64 bg-gray-800 text-white flex-col transition-all duration-300 ${
-          isSidebarOpen ? "flex" : "hidden md:flex"
-        }`}
-      >
-        <div className="p-4 text-2xl font-bold border-b border-gray-700">
-          JELLO
-        </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {menuItems.map(item => (
-            // ★ 5. buttonをLinkコンポーネントに変更し、URLで遷移させる
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={() => window.innerWidth < 768 && setIsSidebarOpen(false)}
-              className={`w-full text-left flex items-center px-4 py-2 rounded-md transition-colors ${
-                // 現在のURLがメニューのパスで始まるかでアクティブ状態を判断
-                location.pathname.startsWith(item.to) ? "bg-gray-700" : "hover:bg-gray-700"
-              }`}
-            >
-              <item.icon className="mr-3" size={20} />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="p-2 border-t border-gray-700">
-          <button onClick={logout} className="w-full text-left flex items-center px-4 py-2 rounded-md hover:bg-gray-700">
-            <LogOut className="mr-3" size={20} /> ログアウト
+    <div className="flex flex-col h-screen bg-gray-100 font-sans overflow-hidden">
+      {/* ヘッダー */}
+      <header className="md:hidden bg-white shadow-sm border-b border-gray-200 z-40 flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-3">
+          <button
+            onClick={toggleSidebar}
+            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+          >
+            {isSidebarOpen ? <X size={24} /> : <MenuIcon size={24} />}
           </button>
+          <h1 className="text-lg font-semibold text-gray-900">JELLO</h1>
+          <div className="w-10"></div> {/* スペーサー */}
         </div>
-      </aside>
+      </header>
 
-      <main className="flex-1 p-4 sm:p-8">
-        <button
-          onClick={toggleSidebar}
-          className="md:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-md shadow-lg"
+      <div className="flex flex-1 relative overflow-hidden">
+        {/* オーバーレイ（モバイル時のサイドバー背景） */}
+        {isSidebarOpen && (
+          <div 
+            className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+            onClick={() => setIsSidebarOpen(false)}
+          ></div>
+        )}
+
+        <aside
+          className={`
+            w-64 bg-gray-800 text-white flex flex-col transition-all duration-300 z-40
+            md:relative md:translate-x-0
+            ${isSidebarOpen 
+              ? "fixed left-0 top-0 h-full translate-x-0" 
+              : "fixed left-0 top-0 h-full -translate-x-full md:flex"
+            }
+          `}
         >
-          {isSidebarOpen ? <X size={24} /> : <MenuIcon size={24} />}
-        </button>
-        
-        <Routes>
-          <Route path="/" element={<ReservationList />} />
-          <Route path="reservations" element={<ReservationList />} />
-          <Route path="reservations/:reservationNumber" element={<AdminReservationDetail />} />
-          <Route path="schedule" element={<AttendanceManagement />} />
-          <Route path="menu" element={<MenuManagement />} />
-          <Route path="users" element={<UserManagement />} />
-          <Route path="statistics" element={<StatisticsPanel />} />
-          <Route path="customers" element={<CustomerManagement />} />
-          <Route path="customers/:customerId" element={<AdminCustomerDetail />} />
-          <Route path="customers/:customerId/memo" element={<CustomerMemo />} />
-          <Route path="customers/:customerId/line" element={<SendLineMessage />} />
-          <Route path="users/:userId" element={<AdminUserDetail />} />
-          <Route path="users/new" element={<AdminUserCreate />} />
-          <Route path="line-history" element={<LineHistoryPage />} />
-          <Route path="customers/:customerId/history" element={<LineHistoryPage />} />
-          <Route path="customers/:customerId/send-message" element={<SendLineMessage />} />
-        </Routes>
-      </main>
+          <div className="p-4 text-2xl font-bold border-b border-gray-700 flex-shrink-0">
+            JELLO
+          </div>
+          <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+            {menuItems.map(item => (
+              // ★ 5. buttonをLinkコンポーネントに変更し、URLで遷移させる
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => window.innerWidth < 768 && setIsSidebarOpen(false)}
+                className={`w-full text-left flex items-center px-4 py-2 rounded-md transition-colors ${
+                  // 現在のURLがメニューのパスで始まるかでアクティブ状態を判断
+                  location.pathname.startsWith(item.to) ? "bg-gray-700" : "hover:bg-gray-700"
+                }`}
+              >
+                <item.icon className="mr-3" size={20} />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="p-2 border-t border-gray-700 flex-shrink-0">
+            <button onClick={logout} className="w-full text-left flex items-center px-4 py-2 rounded-md hover:bg-gray-700">
+              <LogOut className="mr-3" size={20} /> ログアウト
+            </button>
+          </div>
+        </aside>
+
+        <main className="flex-1 overflow-y-auto">
+          <div className="p-4 sm:p-8">
+            <Routes>
+              <Route path="/" element={<ReservationList />} />
+              <Route path="reservations" element={<ReservationList />} />
+              <Route path="reservations/:reservationNumber" element={<AdminReservationDetail />} />
+              <Route path="schedule" element={<AttendanceManagement />} />
+              <Route path="menu" element={<MenuManagement />} />
+              <Route path="users" element={<UserManagement />} />
+              <Route path="statistics" element={<StatisticsPanel />} />
+              <Route path="customers" element={<CustomerManagement />} />
+              <Route path="customers/:customerId" element={<AdminCustomerDetail />} />
+              <Route path="customers/:customerId/memo" element={<CustomerMemo />} />
+              <Route path="customers/:customerId/line" element={<SendLineMessage />} />
+              <Route path="users/:userId" element={<AdminUserDetail />} />
+              <Route path="users/new" element={<AdminUserCreate />} />
+              <Route path="line-history" element={<LineHistoryPage />} />
+              <Route path="customers/:customerId/history" element={<LineHistoryPage />} />
+              <Route path="customers/:customerId/send-message" element={<SendLineMessage />} />
+            </Routes>
+          </div>
+        </main>
+      </div>
     </div>
   );
 };
