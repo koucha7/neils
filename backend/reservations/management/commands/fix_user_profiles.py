@@ -46,10 +46,11 @@ class Command(BaseCommand):
     def check_user_inconsistencies(self, dry_run):
         """auth_userとreservations_userの不整合をチェック"""
         with connection.cursor() as cursor:
-            # auth_userテーブルが存在するかチェック
+            # auth_userテーブルが存在するかチェック（PostgreSQL用）
             cursor.execute("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name='auth_user';
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'auth_user';
             """)
             auth_user_exists = cursor.fetchone()
             

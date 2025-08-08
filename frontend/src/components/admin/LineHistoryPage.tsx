@@ -39,14 +39,9 @@ const LineHistoryPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchParams] = useSearchParams();
   const [isBulkFormOpen, setIsBulkFormOpen] = useState(false);
-  const [isStaffNotificationOpen, setIsStaffNotificationOpen] = useState(false);
   const [bulkMessage, setBulkMessage] = useState("");
   const [bulkImage, setBulkImage] = useState<File | null>(null);
-  const [staffMessage, setStaffMessage] = useState("");
-  const [staffImage, setStaffImage] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [isStaffSending, setIsStaffSending] = useState(false);
-  const [staffStatus, setStaffStatus] = useState<any[]>([]);
   const navigate = useNavigate();
 
   const initialQuery = searchParams.get("query") || "";
@@ -85,18 +80,7 @@ const LineHistoryPage: React.FC = () => {
 
   useEffect(() => {
     fetchHistory(filters);
-    fetchStaffStatus();
   }, [fetchHistory, filters]);
-
-  // 職員のLINE連携状況を取得
-  const fetchStaffStatus = async () => {
-    try {
-      const response = await api.get("/api/admin/staff-line-status/");
-      setStaffStatus(response.data.staff_status);
-    } catch (error) {
-      console.error("職員ステータスの取得に失敗:", error);
-    }
-  };
 
   useEffect(() => {
     // 新しいメッセージが読み込まれたら一番下までスクロール
@@ -133,26 +117,6 @@ const LineHistoryPage: React.FC = () => {
       alert("送信に失敗しました");
     } finally {
       setIsSending(false);
-    }
-  };
-
-  // 職員通知API
-  const handleStaffNotification = async () => {
-    if (!staffMessage && !staffImage) return;
-    setIsStaffSending(true);
-    try {
-      const formData = new FormData();
-      if (staffMessage) formData.append("text", staffMessage);
-      if (staffImage) formData.append("image", staffImage);
-      await api.post("/api/admin/send-staff-notification/", formData);
-      alert("全職員に送信しました");
-      setStaffMessage("");
-      setStaffImage(null);
-      setIsStaffNotificationOpen(false);
-    } catch (e) {
-      alert("送信に失敗しました");
-    } finally {
-      setIsStaffSending(false);
     }
   };
 
@@ -214,9 +178,8 @@ const LineHistoryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* メッセージ表示部分 - 高さを動的に調整 */}
-      <div className="flex-1 flex flex-col" style={{ minHeight: 'calc(100vh - 200px)' }}>
-        <div className="flex-1 overflow-y-auto p-4 border rounded-md bg-gray-100 space-y-4" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+      {/* メッセージ表示部分 - スクロール専用エリア */}
+      <div className="flex-1 overflow-y-auto p-4 border rounded-md bg-gray-100 space-y-4" style={{ height: 'calc(100vh - 200px)' }}>
         {(() => {
           const rendered: JSX.Element[] = [];
           let prevDate: Date | null = null;
@@ -333,87 +296,19 @@ const LineHistoryPage: React.FC = () => {
           return rendered;
         })()}
         <div ref={messagesEndRef} />
-        </div>
-        <div className="w-full flex flex-col items-center bg-white border-t pt-4 pb-6 space-y-4 sticky bottom-0">
-          {/* 職員通知ボタン */}
-          {!isStaffNotificationOpen ? (
-            <div className="flex gap-4">
-              <button
-                className="px-6 py-3 bg-purple-600 text-white rounded-full shadow-lg font-bold hover:bg-purple-700"
-                onClick={() => setIsStaffNotificationOpen(true)}
-              >
-                職員通知
-              </button>
-              <button
-                className="px-6 py-3 bg-green-600 text-white rounded-full shadow-lg font-bold hover:bg-green-700"
-                onClick={() => setIsBulkFormOpen(true)}
-              >
-                顧客一括送信
-              </button>
-            </div>
-          ) : (
-            <form
-              className="w-full max-w-md bg-white p-4 rounded-lg shadow-xl flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleStaffNotification();
-              }}
+      </div>
+
+      {/* 顧客一括送信ボタンエリア - 常に下部に固定 */}
+      <div className="w-full flex flex-col items-center bg-white border-t pt-4 sticky bottom-0">
+          {/* 顧客一括送信ボタンのみ表示 */}
+          {!isBulkFormOpen ? (
+            <button
+              className="px-6 py-3 bg-green-600 text-white rounded-full shadow-lg font-bold hover:bg-green-700"
+              onClick={() => setIsBulkFormOpen(true)}
             >
-              <h3 className="text-lg font-bold mb-2">全職員にLINE通知</h3>
-              
-              {/* 職員の連携状況表示 */}
-              <div className="mb-4 p-3 bg-gray-50 rounded">
-                <h4 className="text-sm font-semibold mb-2">職員のLINE連携状況:</h4>
-                <div className="space-y-1">
-                  {staffStatus.map((staff, index) => (
-                    <div key={index} className="flex justify-between items-center text-xs">
-                      <span>{staff.full_name || staff.username}</span>
-                      <span className={`px-2 py-1 rounded ${staff.is_line_linked ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {staff.is_line_linked ? '連携済み' : '未連携'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-600 mt-2">
-                  連携済みの職員: {staffStatus.filter(s => s.is_line_linked).length} / {staffStatus.length} 人
-                </p>
-              </div>
-
-              <textarea
-                className="w-full p-2 border rounded"
-                rows={4}
-                placeholder="職員向けメッセージ本文"
-                value={staffMessage}
-                onChange={(e) => setStaffMessage(e.target.value)}
-              />
-              <input
-                type="file"
-                accept="image/*"
-                className="mb-2"
-                onChange={(e) => setStaffImage(e.target.files?.[0] || null)}
-              />
-              <div className="flex gap-4 justify-end">
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-gray-300 rounded"
-                  onClick={() => setIsStaffNotificationOpen(false)}
-                  disabled={isStaffSending}
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-purple-600 text-white rounded font-bold"
-                  disabled={isStaffSending || staffStatus.filter(s => s.is_line_linked).length === 0}
-                >
-                  {isStaffSending ? "送信中..." : "全職員に送信"}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* 顧客一括送信フォーム */}
-          {!isBulkFormOpen ? null : (
+              顧客一括送信
+            </button>
+          ) : (
             <form
               className="w-full max-w-md bg-white p-4 rounded-lg shadow-xl flex flex-col gap-4"
               onSubmit={(e) => {
