@@ -726,15 +726,32 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
             logger.info(f"取得したユーザー: {user.id}, {user.username}, type: {type(user)}")
             logger.info(f"ユーザーモデル: {user.__class__.__module__}.{user.__class__.__name__}")
             
+            # ユーザーが実際にreservations_userテーブルに存在するかを確認
+            from reservations.models import User as ReservationsUser
+            if not ReservationsUser.objects.filter(id=user.id).exists():
+                logger.error(f"ユーザーID {user.id} がreservations_userテーブルに存在しません")
+                return Response(
+                    {'error': 'ユーザーが見つかりません。'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
             # UserProfileが存在するか確認し、存在しない場合は作成
             try:
                 profile = UserProfile.objects.get(user_id=user.id)
                 logger.info(f"既存のUserProfileを取得: {profile.id}")
             except UserProfile.DoesNotExist:
                 logger.info(f"UserProfileが存在しないため作成します: user_id={user.id}")
-                profile = UserProfile(user_id=user.id)
-                profile.save()
-                logger.info(f"新しいUserProfileを作成: {profile.id}")
+                try:
+                    # userオブジェクトを直接使用して作成
+                    profile = UserProfile(user=user)
+                    profile.save()
+                    logger.info(f"新しいUserProfileを作成: {profile.id}")
+                except Exception as create_error:
+                    logger.error(f"UserProfile作成エラー: {create_error}")
+                    return Response(
+                        {'error': f'プロファイルの作成に失敗しました: {str(create_error)}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
             
             # 登録トークンを更新
             profile.line_registration_token = uuid.uuid4()
@@ -774,21 +791,32 @@ class AdminUserViewSet(viewsets.ModelViewSet):
             logger.info(f"取得したユーザー: {user.id}, {user.username}, type: {type(user)}")
             logger.info(f"ユーザーモデル: {user.__class__.__module__}.{user.__class__.__name__}")
             
+            # ユーザーが実際にreservations_userテーブルに存在するかを確認
+            from reservations.models import User as ReservationsUser
+            if not ReservationsUser.objects.filter(id=user.id).exists():
+                logger.error(f"ユーザーID {user.id} がreservations_userテーブルに存在しません")
+                return Response(
+                    {'error': 'ユーザーが見つかりません。'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
             # UserProfileが存在するか確認し、存在しない場合は作成
             try:
                 profile = UserProfile.objects.get(user_id=user.id)
                 logger.info(f"既存のUserProfileを取得: {profile.id}")
             except UserProfile.DoesNotExist:
                 logger.info(f"UserProfileが存在しないため作成します: user_id={user.id}")
-                
-                # より安全な方法で作成を試行
                 try:
-                    profile = UserProfile(user_id=user.id)
+                    # userオブジェクトを直接使用して作成
+                    profile = UserProfile(user=user)
                     profile.save()
                     logger.info(f"新しいUserProfileを作成: {profile.id}")
                 except Exception as create_error:
                     logger.error(f"UserProfile作成エラー: {create_error}")
-                    raise Exception(f"UserProfile作成に失敗しました: {str(create_error)}")
+                    return Response(
+                        {'error': f'プロファイルの作成に失敗しました: {str(create_error)}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
             
             # 新しい登録トークンを生成して保存
             token = uuid.uuid4()
