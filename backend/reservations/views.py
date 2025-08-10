@@ -1154,12 +1154,30 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                # 新規顧客作成
-                customer = Customer.objects.create(
-                    name=name,
-                    phone_number=phone or '',
-                    email=email or ''
-                )
+                # 顧客の取得または作成（メールアドレスが既存の場合は既存顧客を使用）
+                customer_was_existing = False
+                if email:
+                    # メールアドレスが提供されている場合は、既存顧客をチェック
+                    customer, created = Customer.objects.get_or_create(
+                        email=email,
+                        defaults={
+                            'name': name,
+                            'phone_number': phone or '',
+                        }
+                    )
+                    if not created:
+                        # 既存顧客の情報を更新
+                        customer_was_existing = True
+                        customer.name = name
+                        customer.phone_number = phone or customer.phone_number
+                        customer.save()
+                else:
+                    # メールアドレスが提供されていない場合は新規作成
+                    customer = Customer.objects.create(
+                        name=name,
+                        phone_number=phone or '',
+                        email=''
+                    )
 
                 # 予約作成
                 service = Service.objects.get(id=service_id)
@@ -1195,7 +1213,11 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                     except Exception as e:
                         logger.warning(f"顧客メール通知の送信に失敗しました: {e}")
 
-                return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
+                return Response({
+                    'reservation': ReservationSerializer(reservation).data,
+                    'customer_was_existing': customer_was_existing,
+                    'message': f"予約が作成されました。{'既存の顧客' if customer_was_existing else '新規顧客'}として登録されています。"
+                }, status=status.HTTP_201_CREATED)
 
         except Service.DoesNotExist:
             return Response({'error': '指定されたサービスが見つかりません。'}, status=status.HTTP_400_BAD_REQUEST)
