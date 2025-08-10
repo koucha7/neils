@@ -4,7 +4,7 @@ from django.db import migrations
 
 
 def do_nothing(apps, schema_editor):
-    """何もしない（no-op操作）"""
+    """何もしない（no-op操作）- 本番環境での互換性のため"""
     pass
 
 
