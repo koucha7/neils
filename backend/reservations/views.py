@@ -1392,6 +1392,42 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
             logger.error(f"メッセージ送信中に予期せぬエラーが発生: {e}", exc_info=True)
             return Response({'error': 'サーバー内部でエラーが発生しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=True, methods=['post'], url_path='generate-line-link')
+    def generate_line_link(self, request, pk=None):
+        """指定された顧客のLINE連携用リンクを生成する"""
+        customer = self.get_object()
+        
+        # 既にLINE連携済みの場合はエラーを返す
+        if customer.line_user_id:
+            return Response({
+                'error': 'この顧客は既にLINE連携済みです。',
+                'line_display_name': customer.line_display_name
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # フロントエンドのLINE連携ページURL生成
+            base_url = os.environ.get('FRONTEND_URL', 'https://your-frontend-url')
+            link_url = f"{base_url}/link-customer/{customer.id}"
+            
+            # 管理者へのLINE通知
+            try:
+                send_admin_line_notification(
+                    f"顧客LINE連携URLが生成されました。\n顧客: {customer.name}\n連携URL: {link_url}"
+                )
+            except Exception as e:
+                logger.warning(f"管理者LINE通知の送信に失敗しました: {e}")
+
+            return Response({
+                'link_url': link_url,
+                'message': f'顧客「{customer.name}」のLINE連携URLを生成しました。'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"LINE連携URL生成エラー: {e}")
+            return Response({
+                'error': 'LINE連携URLの生成に失敗しました。'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])

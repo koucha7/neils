@@ -13,6 +13,8 @@ interface Customer {
   phone_number: string;
   memo: string;
   created_at: string;
+  line_user_id?: string;
+  line_display_name?: string;
 }
 
 interface Reservation {
@@ -31,6 +33,33 @@ const CustomerDetail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+
+  // LINE連携URL生成関数
+  const handleGenerateLineLink = async () => {
+    if (!customer) return;
+
+    try {
+      const response = await api.post(`/api/admin/customers/${customer.id}/generate-line-link/`);
+      
+      if (response.data.link_url) {
+        const linkUrl = response.data.link_url;
+        const message = response.data.message;
+        
+        // URLをクリップボードにコピー
+        await navigator.clipboard.writeText(linkUrl);
+        
+        alert(`${message}\n\nURL: ${linkUrl}\n\n※URLがクリップボードにコピーされました。`);
+      }
+    } catch (error: any) {
+      console.error('LINE連携URL生成エラー:', error);
+      
+      if (error.response?.data?.error) {
+        alert(`エラー: ${error.response.data.error}`);
+      } else {
+        alert('LINE連携URLの生成に失敗しました。');
+      }
+    }
+  };
 
   // 顧客詳細データを再取得する関数
   const refetchCustomerData = async () => {
@@ -150,6 +179,26 @@ const CustomerDetail: React.FC = () => {
       {/* アクション */}
       <div className="bg-white p-4 md:p-6 rounded-lg shadow-md mb-4 md:mb-6 border-2">
         <h3 className="text-lg font-bold mb-4">アクション</h3>
+        
+        {/* LINE連携状態表示 */}
+        <div className="mb-4 p-3 rounded-lg bg-gray-50">
+          <h4 className="font-semibold text-sm mb-2">LINE連携状態</h4>
+          {customer.line_user_id ? (
+            <div className="flex items-center">
+              <span className="inline-block w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+              <span className="text-green-700 font-medium">連携済み</span>
+              {customer.line_display_name && (
+                <span className="ml-2 text-gray-600">({customer.line_display_name})</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center">
+              <span className="inline-block w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+              <span className="text-red-700 font-medium">未連携</span>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap gap-4 border p-2">{/* デバッグ用ボーダー */}
           <button
             onClick={() => navigate(`/admin/customers/${customerId}/memo`)}
@@ -158,14 +207,29 @@ const CustomerDetail: React.FC = () => {
             <Edit size={18} className="mr-2" />
             顧客メモを編集
           </button>
-          <button
-            onClick={() => navigate(`/admin/customers/${customerId}/send-message`)}
-            className="inline-flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors"
-          >
-            <MessageSquare size={18} className="mr-2" />
-            LINEでメッセージを送信
-          </button>
-          {/* ▼▼▼【ここを修正】▼▼▼ */}
+          
+          {/* LINE連携URL生成ボタン（未連携の場合のみ表示） */}
+          {!customer.line_user_id && (
+            <button
+              onClick={handleGenerateLineLink}
+              className="inline-flex items-center bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 transition-colors"
+            >
+              <MessageSquare size={18} className="mr-2" />
+              LINE連携URL生成
+            </button>
+          )}
+          
+          {/* LINEメッセージ送信ボタン（連携済みの場合のみ表示） */}
+          {customer.line_user_id && (
+            <button
+              onClick={() => navigate(`/admin/customers/${customerId}/send-message`)}
+              className="inline-flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors"
+            >
+              <MessageSquare size={18} className="mr-2" />
+              LINEでメッセージを送信
+            </button>
+          )}
+          
           <button
             onClick={() => navigate(`/admin/line-history?query=${encodeURIComponent(customer.name)}`)}
             className="inline-flex items-center bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors"
