@@ -75,16 +75,59 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
 
   // アプリケーション起動時の認証状態チェック
   useEffect(() => {
-    const tokenExists = !!localStorage.getItem('adminAccessToken');
-    if (isLoggedIn !== tokenExists) {
-      setIsLoggedIn(tokenExists);
-    }
-    // トークンがあればユーザー情報取得
-    if (tokenExists && !user) {
-      api.get('/api/admin/me/').then(res => setUser(res.data)).catch(() => setUser(null));
-    }
-    setIsLoading(false);
-  }, [isLoggedIn, user]);
+    const checkAuthStatus = async () => {
+      const accessToken = localStorage.getItem('adminAccessToken');
+      const refreshToken = localStorage.getItem('adminRefreshToken');
+      
+      if (!accessToken || !refreshToken) {
+        setIsLoggedIn(false);
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // トークンの有効性をチェック
+      try {
+        const response = await api.get('/api/admin/me/');
+        setUser(response.data);
+        setIsLoggedIn(true);
+      } catch (error: any) {
+        // 401エラーの場合はトークンが無効
+        if (error.response?.status === 401) {
+          console.log('トークンが無効のため、ログアウトします');
+          clearAuthTokens();
+          setIsLoggedIn(false);
+          // 既にaxiosConfigでリダイレクトが行われるが、念のため
+          navigate('/admin');
+        } else {
+          // その他のエラーの場合は一旦ログイン状態を維持
+          setIsLoggedIn(true);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuthStatus();
+  }, [navigate]);
+
+  // 定期的にトークンの有効性をチェック（15分ごと）
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const interval = setInterval(async () => {
+      try {
+        await api.get('/api/admin/me/');
+      } catch (error: any) {
+        if (error.response?.status === 401) {
+          console.log('定期チェック: トークンが無効のため、ログアウトします');
+          logout();
+        }
+      }
+    }, 15 * 60 * 1000); // 15分ごと
+
+    return () => clearInterval(interval);
+  }, [isLoggedIn, logout]);
 
   const value = {
     user,

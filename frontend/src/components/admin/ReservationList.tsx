@@ -48,6 +48,24 @@ const ReservationList: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
 
+  // ステータスを日本語に変換する関数
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'confirmed':
+        return '確定';
+      case 'pending':
+        return '保留中';
+      case 'cancelled':
+        return 'キャンセル';
+      case 'completed':
+        return '完了';
+      case 'no_show':
+        return '無断欠席';
+      default:
+        return status;
+    }
+  };
+
   // --- フィルター用のState ---
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -121,7 +139,7 @@ const ReservationList: React.FC = () => {
     <div className="space-y-6">
       {/* ▼▼▼【ここからが修正箇所】▼▼▼ */}
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">予約一覧</h1>
+        <h1 className="text-xl font-bold text-gray-800">予約一覧</h1>
         <div className="flex items-center gap-2">
           {/* 新規作成ボタン */}
           <button 
@@ -215,7 +233,7 @@ const ReservationList: React.FC = () => {
               <p className="font-semibold text-gray-800">{reservation.customer_name}</p>
               <p className="text-sm text-gray-600">{reservation.service_name}</p>
               <span className={`mt-2 inline-block px-2 py-1 text-xs font-semibold rounded-full ${getStatusClass(reservation.status)}`}>
-                {reservation.status}
+                {getStatusLabel(reservation.status)}
               </span>
             </div>
             {/* ▼▼▼【スマホ用の日付表示を修正】▼▼▼ */}
@@ -258,7 +276,7 @@ const ReservationList: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap">{reservation.service_name}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(reservation.status)}`}>
-                    {reservation.status}
+                    {getStatusLabel(reservation.status)}
                   </span>
                 </td>
               </tr>

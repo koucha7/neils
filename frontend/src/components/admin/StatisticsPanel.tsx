@@ -96,7 +96,7 @@ const StatisticsPanel = () => {
 
   return (
     <div className="p-4 md:p-6 space-y-8">
-      <h2 className="text-2xl font-bold text-gray-800">統計情報</h2>
+      <h2 className="text-lg font-bold text-gray-800">統計情報</h2>
       
       {/* 予約ステータス */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

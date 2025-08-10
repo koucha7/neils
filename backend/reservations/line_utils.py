@@ -42,6 +42,11 @@ def get_line_user_profile(code: str, flow_type: str = 'customer') -> dict:
         print(f"  - LINEにトークンを要求します... URL: {token_url}")
         token_response = requests.post(token_url, data=token_payload)
         print(f"  - LINEからの応答ステータス: {token_response.status_code}")
+        
+        if token_response.status_code != 200:
+            print(f"【エラー】LINEトークン取得失敗: {token_response.status_code}")
+            print(f"【エラー詳細】応答内容: {token_response.text}")
+        
         token_response.raise_for_status() # エラーがあればここで例外が発生
         
         token_data = token_response.json()
@@ -58,6 +63,11 @@ def get_line_user_profile(code: str, flow_type: str = 'customer') -> dict:
         print(f"  - IDトークンを検証します... URL: {verify_url}")
         verify_response = requests.post(verify_url, data=verify_payload)
         print(f"  - LINEからの検証応答ステータス: {verify_response.status_code}")
+        
+        if verify_response.status_code != 200:
+            print(f"【エラー】LINE IDトークン検証失敗: {verify_response.status_code}")
+            print(f"【エラー詳細】応答内容: {verify_response.text}")
+        
         verify_response.raise_for_status()
 
         user_profile = verify_response.json()

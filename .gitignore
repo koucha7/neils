@@ -641,4 +641,3 @@ backend/test_env.py
 /backend/jello_backend_project/__pycache__/*.pyc
 /backend/reservations/__pycache__/*.pyc
 /backend/reservations/migrations/__pycache__/*.pyc
-JELLO.code-workspace

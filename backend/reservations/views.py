@@ -37,13 +37,25 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import action
 
 # --- Google Cloud & LINE SDK ---
-from google.cloud import storage
-from google.auth import default as google_auth_default
-from google.auth.exceptions import GoogleAuthError
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from linebot import LineBotApi
-from linebot.models import TextSendMessage, ImageSendMessage
+try:
+    from google.cloud import storage
+    from google.auth import default as google_auth_default
+    from google.auth.exceptions import GoogleAuthError
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+except ImportError:
+    # 開発環境ではGoogle Cloud関連のライブラリがないので無視
+    storage = None
+    google_auth_default = None
+
+try:
+    from linebot import LineBotApi
+    from linebot.models import TextSendMessage, ImageSendMessage
+except ImportError:
+    # 開発環境ではLINE Bot SDKがないので無視
+    LineBotApi = None
+    TextSendMessage = None
+    ImageSendMessage = None
 
 # --- Local App Imports ---
 from .authentication import CustomerJWTAuthentication
@@ -61,8 +73,18 @@ from .serializers import (
 
 # --- Global Initializations ---
 logger = logging.getLogger(__name__)
-line_bot_api = LineBotApi(settings.ADMIN_LINE_CHANNEL_ACCESS_TOKEN)
-customer_ine_bot_api = LineBotApi(settings.CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN)
+
+# LINE Bot APIの初期化（開発環境では無効化）
+line_bot_api = None
+customer_ine_bot_api = None
+
+if LineBotApi:
+    try:
+        line_bot_api = LineBotApi(settings.ADMIN_LINE_CHANNEL_ACCESS_TOKEN)
+        customer_ine_bot_api = LineBotApi(settings.CUSTOMER_LINE_CHANNEL_ACCESS_TOKEN)
+    except Exception:
+        # 設定値がない場合は無効化
+        pass
 
 # ==============================================================================
 # Public-Facing ViewSets (No Authentication Required)
@@ -174,6 +196,10 @@ class ReservationViewSet(viewsets.ModelViewSet):
     
     def add_event_to_google_calendar(self, reservation):
         """Googleカレンダーに予約イベントを追加するヘルパーメソッド"""
+        if not google_auth_default:
+            print("Google Cloud SDKが利用できません")
+            return
+            
         SCOPES = ['https://www.googleapis.com/auth/calendar']
         CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 
@@ -402,6 +428,109 @@ class AdminAvailableSlotView(APIView):
         AvailableTimeSlot.objects.bulk_create(slots_to_create)
 
         return Response({'status': 'success'}, status=status.HTTP_201_CREATED)
+
+
+class AdminAvailableTimesForReservationView(APIView):
+    """
+    管理者の予約作成時に使用する、実際に予約可能な時間帯を返すAPI
+    既存の予約と重複しない時間帯のみを返す
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated] 
+
+    def get(self, request, *args, **kwargs):
+        """
+        指定された日付で、実際に予約可能な時間帯を返す
+        """
+        date_str = request.query_params.get('date')
+        
+        if not date_str:
+            return Response({"error": "日付パラメータが必要です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({"error": "無効な日付形式です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. その日に登録されている予約可能スロットを全て取得
+        available_slots = AvailableTimeSlot.objects.filter(date=target_date)
+        
+        # 2. その日の既存の予約の開始時刻をセットとして取得
+        booked_start_times = set(
+            Reservation.objects.filter(start_time__date=target_date)
+                               .values_list('start_time__time', flat=True)
+        )
+
+        # 3. 実際に予約可能な時間帯のみを返す
+        free_slots = []
+        for slot in available_slots:
+            if slot.time not in booked_start_times:
+                free_slots.append(slot.time.strftime('%H:%M'))
+
+        # 時間順にソート
+        free_slots.sort()
+        
+        return Response(free_slots, status=status.HTTP_200_OK)
+
+class AdminDetailedTimeSlotsView(APIView):
+    """
+    管理者用：営業時間内外と予約状況の詳細情報を返すAPI
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated] 
+
+    def get(self, request, *args, **kwargs):
+        """
+        営業時間内の利用可能時間、営業時間外の時間、予約済み時間を区別して返す
+        """
+        date_str = request.query_params.get('date')
+        
+        if not date_str:
+            return Response({"error": "日付パラメータが必要です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({"error": "無効な日付形式です。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 9:00-21:00の30分間隔の全時間スロットを生成
+        all_time_slots = []
+        for hour in range(9, 21):
+            all_time_slots.append(f"{hour:02d}:00")
+            all_time_slots.append(f"{hour:02d}:30")
+        all_time_slots.append("21:00")
+
+        # その日に登録されている営業時間（予約可能スロット）を取得
+        business_hours_slots = set(
+            AvailableTimeSlot.objects.filter(date=target_date)
+                                    .values_list('time', flat=True)
+        )
+        business_hours = [t.strftime('%H:%M') for t in business_hours_slots]
+
+        # その日の既存の予約の開始時刻を取得
+        booked_times = set(
+            Reservation.objects.filter(start_time__date=target_date)
+                               .values_list('start_time__time', flat=True)
+        )
+        booked_times_str = [t.strftime('%H:%M') for t in booked_times]
+
+        # 営業時間内で予約可能な時間
+        available_times = []
+        for time_str in business_hours:
+            if time_str not in booked_times_str:
+                available_times.append(time_str)
+
+        # 営業時間外の時間（予約が入っていない時間のみ）
+        outside_business_hours = []
+        for time_str in all_time_slots:
+            if time_str not in business_hours and time_str not in booked_times_str:
+                outside_business_hours.append(time_str)
+
+        return Response({
+            "available_times": sorted(available_times),  # 営業時間内で予約可能
+            "outside_business_hours": sorted(outside_business_hours),  # 営業時間外で予約可能
+            "booked_times": sorted(booked_times_str)  # 予約済み（表示しない）
+        }, status=status.HTTP_200_OK)
     
 class ConfiguredDatesView(APIView):
     """
@@ -487,6 +616,16 @@ class LineLoginCallbackView(APIView):
             return Response({'error': 'Code not provided'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            # LINE関連の設定が有効かチェック
+            if not all([
+                settings.LINE_CHANNEL_ID,
+                settings.LINE_CHANNEL_SECRET,
+            ]):
+                logger.warning("LINE設定が不完全です。LINEログインが無効化されています。")
+                return Response({
+                    'error': 'LINE login is not configured properly'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            
             line_profile = get_line_user_profile(code, flow_type='customer')
             line_user_id = line_profile.get('sub')
             
@@ -509,9 +648,23 @@ class LineLoginCallbackView(APIView):
                 'access': str(refresh.access_token),
             }, status=status.HTTP_200_OK)
             
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"LINE API HTTPエラー: {e.response.status_code if e.response else 'Unknown'} - {e}")
+            if e.response:
+                logger.error(f"LINE API エラー詳細: {e.response.text}")
+            return Response({
+                'error': 'LINE authentication failed. Please try again.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"LINE API通信エラー: {e}")
+            return Response({
+                'error': 'LINE service is currently unavailable. Please try again later.'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as e:
             logger.error(f"LINEログインコールバックエラー: {e}", exc_info=True)
-            return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                'error': 'An unexpected error occurred.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @authentication_classes([CustomerJWTAuthentication])
@@ -568,13 +721,55 @@ class AdminUserManagementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='generate-line-link')
     def generate_line_link(self, request, pk=None):
         """指定された社員のLINE連携用リンクを生成する"""
-        user = self.get_object()
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.line_registration_token = uuid.uuid4()
-        profile.save()
-        base_url = os.environ.get('FRONTEND_ADMIN_URL', 'http://localhost:5173')
-        registration_url = f"{base_url}/register-line/{profile.line_registration_token}"
-        return Response({'registration_link': registration_url})
+        try:
+            user = self.get_object()
+            logger.info(f"取得したユーザー: {user.id}, {user.username}, type: {type(user)}")
+            logger.info(f"ユーザーモデル: {user.__class__.__module__}.{user.__class__.__name__}")
+            
+            # ユーザーが実際にreservations_userテーブルに存在するかを確認
+            from reservations.models import User as ReservationsUser
+            if not ReservationsUser.objects.filter(id=user.id).exists():
+                logger.error(f"ユーザーID {user.id} がreservations_userテーブルに存在しません")
+                return Response(
+                    {'error': 'ユーザーが見つかりません。'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # UserProfileが存在するか確認し、存在しない場合は作成
+            try:
+                profile = UserProfile.objects.get(user_id=user.id)
+                logger.info(f"既存のUserProfileを取得: {profile.id}")
+            except UserProfile.DoesNotExist:
+                logger.info(f"UserProfileが存在しないため作成します: user_id={user.id}")
+                try:
+                    # userオブジェクトを直接使用して作成
+                    profile = UserProfile(user=user)
+                    profile.save()
+                    logger.info(f"新しいUserProfileを作成: {profile.id}")
+                except Exception as create_error:
+                    logger.error(f"UserProfile作成エラー: {create_error}")
+                    return Response(
+                        {'error': f'プロファイルの作成に失敗しました: {str(create_error)}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+            
+            # 登録トークンを更新
+            profile.line_registration_token = uuid.uuid4()
+            profile.save()
+            
+            # 環境変数からフロントエンドのURLを取得
+            base_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+            registration_url = f"{base_url}/register-line/{profile.line_registration_token}"
+            
+            logger.info(f"LINE連携URL生成成功: ユーザー{user.username} - {registration_url}")
+            return Response({'registration_link': registration_url})
+            
+        except Exception as e:
+            logger.error(f"LINE連携URL生成エラー: {e}", exc_info=True)
+            return Response(
+                {'error': f'LINE連携URLの生成に失敗しました: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
 class AdminUserViewSet(viewsets.ModelViewSet):
     """
@@ -583,6 +778,7 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all().order_by('date_joined')
     serializer_class = AdminUserSerializer
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsAdminUser] # 管理者のみアクセス可能
 
     @action(detail=True, methods=['post'], url_path='generate-line-link')
@@ -590,26 +786,58 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         """
         指定された社員のLINE連携用リンクを生成する
         """
-        user = self.get_object()
-        profile, created = UserProfile.objects.get_or_create(user=user)
-        
-        # 新しい登録トークンを生成して保存
-        token = uuid.uuid4()
-        profile.line_registration_token = token
-        profile.save()
-        
-        # ▼▼▼【ここから修正】▼▼▼
-        # 環境変数からフロントエンドのURLを取得
-        # VITE_APP_FRONTEND_URL のような、より明確な名前の環境変数を参照するのが望ましい
-        base_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173') 
-        
-        # フロントエンドに作成した連携用ページのパスを正しく指定
-        registration_url = f"{base_url}/register-line/{token}"
-        
-        print(f"生成された連携URL: {registration_url}") # デバッグ用にURLをコンソールに出力
-        # ▲▲▲【修正ここまで】▲▲▲
-        
-        return Response({'registration_link': registration_url})
+        try:
+            user = self.get_object()
+            logger.info(f"取得したユーザー: {user.id}, {user.username}, type: {type(user)}")
+            logger.info(f"ユーザーモデル: {user.__class__.__module__}.{user.__class__.__name__}")
+            
+            # ユーザーが実際にreservations_userテーブルに存在するかを確認
+            from reservations.models import User as ReservationsUser
+            if not ReservationsUser.objects.filter(id=user.id).exists():
+                logger.error(f"ユーザーID {user.id} がreservations_userテーブルに存在しません")
+                return Response(
+                    {'error': 'ユーザーが見つかりません。'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # UserProfileが存在するか確認し、存在しない場合は作成
+            try:
+                profile = UserProfile.objects.get(user_id=user.id)
+                logger.info(f"既存のUserProfileを取得: {profile.id}")
+            except UserProfile.DoesNotExist:
+                logger.info(f"UserProfileが存在しないため作成します: user_id={user.id}")
+                try:
+                    # userオブジェクトを直接使用して作成
+                    profile = UserProfile(user=user)
+                    profile.save()
+                    logger.info(f"新しいUserProfileを作成: {profile.id}")
+                except Exception as create_error:
+                    logger.error(f"UserProfile作成エラー: {create_error}")
+                    return Response(
+                        {'error': f'プロファイルの作成に失敗しました: {str(create_error)}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+            
+            # 新しい登録トークンを生成して保存
+            token = uuid.uuid4()
+            profile.line_registration_token = token
+            profile.save()
+            
+            # 環境変数からフロントエンドのURLを取得
+            base_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173') 
+            
+            # フロントエンドに作成した連携用ページのパスを正しく指定
+            registration_url = f"{base_url}/register-line/{token}"
+            
+            logger.info(f"生成された連携URL: {registration_url}")
+            return Response({'registration_link': registration_url})
+            
+        except Exception as e:
+            logger.error(f"LINE連携URL生成エラー: {e}", exc_info=True)
+            return Response(
+                {'error': f'LINE連携URLの生成に失敗しました: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     def create(self, request, *args, **kwargs):
         """
@@ -757,7 +985,7 @@ class LineWebhookView(APIView):
             logger.info(f"新規顧客を作成しました: {line_user_id}")
 
         # 顧客詳細ページへのリンクを生成
-        base_url = os.environ.get('ADMIN_CUSTOMER_DETAIL_URL', 'https://JELLO.nail.com/admin/customers/')
+        base_url = os.environ.get('ADMIN_CUSTOMER_DETAIL_URL', 'https://jello-nail.com/admin/customers/')
         detail_url = f"{base_url}{customer.id}"
 
         if message_type == 'text':
@@ -778,6 +1006,10 @@ class LineWebhookView(APIView):
     def handle_image_message(self, customer, message_id):
         """画像メッセージをGCSに保存し、管理者に転送する"""
         try:
+            if not line_bot_api or not storage:
+                logger.warning("LINE Bot API または Google Cloud Storage が利用できません")
+                return
+                
             # LINEサーバーから画像コンテンツを取得
             message_content = line_bot_api.get_message_content(message_id)
             
@@ -855,7 +1087,6 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                     f"お申し込みいただいた内容でご予約が確定いたしました。\n"
                     f"ご来店を心よりお待ちしております。\n\n"
                     f"--- ご予約内容 ---\n"
-                    f"予約番号: {reservation.reservation_number}\n"
                     f"日時: {reservation.start_time.strftime('%Y年%m月%d日 %H:%M')}\n"
                     f"サービス: {reservation.service.name}\n"
                 )
@@ -885,6 +1116,10 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
 
     def add_event_to_google_calendar(self, reservation):
         """Googleカレンダーに予約イベントを追加する"""
+        if not google_auth_default:
+            logger.warning("Google Cloud SDKが利用できません。")
+            return
+            
         CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
         if not CALENDAR_ID:
             logger.warning("環境変数 GOOGLE_CALENDAR_ID が設定されていません。")
@@ -919,12 +1154,30 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                # 新規顧客作成
-                customer = Customer.objects.create(
-                    name=name,
-                    phone_number=phone or '',
-                    email=email or ''
-                )
+                # 顧客の取得または作成（メールアドレスが既存の場合は既存顧客を使用）
+                customer_was_existing = False
+                if email:
+                    # メールアドレスが提供されている場合は、既存顧客をチェック
+                    customer, created = Customer.objects.get_or_create(
+                        email=email,
+                        defaults={
+                            'name': name,
+                            'phone_number': phone or '',
+                        }
+                    )
+                    if not created:
+                        # 既存顧客の情報を更新
+                        customer_was_existing = True
+                        customer.name = name
+                        customer.phone_number = phone or customer.phone_number
+                        customer.save()
+                else:
+                    # メールアドレスが提供されていない場合は新規作成
+                    customer = Customer.objects.create(
+                        name=name,
+                        phone_number=phone or '',
+                        email=''
+                    )
 
                 # 予約作成
                 service = Service.objects.get(id=service_id)
@@ -935,9 +1188,10 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                 reservation = Reservation.objects.create(
                     customer=customer,
                     service=service,
+                    salon=service.salon,  # サービスが属するサロンを設定
                     start_time=start_datetime,
                     end_time=end_datetime,
-                    status='pending'
+                    status='confirmed'  # 管理画面からの予約は確定状態
                 )
 
                 # LINE連携用URL生成＆管理LINE通知
@@ -946,12 +1200,24 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                     link_url = f"{base_url}/link-customer/{customer.id}"
                     from .notifications import send_admin_line_notification
                     send_admin_line_notification(
-                        f"新規顧客予約が作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nLINE連携: {link_url}"
+                        f"新規顧客予約が確定済みで作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nステータス: 確定済み\nLINE連携: {link_url}"
                     )
                 except Exception as e:
-                    logger.warning(f"LINE通知の送信に失敗しました: {e}")
+                    logger.warning(f"管理者LINE通知の送信に失敗しました: {e}")
 
-                return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
+                # 新規顧客へのメール通知（メールアドレスが設定されている場合）
+                if customer.email:
+                    try:
+                        from .notifications import send_reservation_confirmation_email
+                        send_reservation_confirmation_email(customer, reservation, service)
+                    except Exception as e:
+                        logger.warning(f"顧客メール通知の送信に失敗しました: {e}")
+
+                return Response({
+                    'reservation': ReservationSerializer(reservation).data,
+                    'customer_was_existing': customer_was_existing,
+                    'message': f"予約が作成されました。{'既存の顧客' if customer_was_existing else '新規顧客'}として登録されています。"
+                }, status=status.HTTP_201_CREATED)
 
         except Service.DoesNotExist:
             return Response({'error': '指定されたサービスが見つかりません。'}, status=status.HTTP_400_BAD_REQUEST)
@@ -981,19 +1247,39 @@ class AdminReservationViewSet(viewsets.ModelViewSet):
                 reservation = Reservation.objects.create(
                     customer=customer,
                     service=service,
+                    salon=service.salon,  # サービスが属するサロンを設定
                     start_time=start_datetime,
                     end_time=end_datetime,
-                    status='pending'
+                    status='confirmed'  # 管理画面からの予約は確定状態
                 )
 
                 # 管理LINE通知
                 try:
                     from .notifications import send_admin_line_notification
                     send_admin_line_notification(
-                        f"予約が作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nサービス: {service.name}"
+                        f"予約が確定済みで作成されました。\n顧客: {customer.name}\n予約: {reservation.reservation_number}\nサービス: {service.name}\nステータス: 確定済み"
                     )
                 except Exception as e:
-                    logger.warning(f"LINE通知の送信に失敗しました: {e}")
+                    logger.warning(f"管理者LINE通知の送信に失敗しました: {e}")
+
+                # 既存顧客へのLINE通知
+                try:
+                    from .notifications import send_customer_line_notification
+                    formatted_date = start_datetime.strftime('%Y年%m月%d日 %H:%M')
+                    customer_message = f"""
+{customer.name}様
+予約が確定いたしました。
+
+【予約詳細】
+・サービス: {service.name}
+・予約日時: {formatted_date}
+・所要時間: {service.duration_minutes}分
+
+当日のご来店をお待ちしております。
+"""
+                    send_customer_line_notification(customer, customer_message)
+                except Exception as e:
+                    logger.warning(f"顧客LINE通知の送信に失敗しました: {e}")
 
                 return Response(ReservationSerializer(reservation).data, status=status.HTTP_201_CREATED)
 
@@ -1070,7 +1356,8 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
 
         try:
             if text:
-                customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
+                if customer_ine_bot_api and TextSendMessage:
+                    customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
                 LineMessage.objects.create(
                      customer=customer,
                      message=text,
@@ -1078,67 +1365,32 @@ class AdminCustomerViewSet(viewsets.ModelViewSet):
                 )
 
             if image_file:
-                storage_client = storage.Client()
-                bucket = storage_client.bucket('JELLO-line-images') # ★ご自身のGCSバケット名
-                
-                file_name = f'admin_sent/{uuid.uuid4()}_{image_file.name}'
-                blob = bucket.blob(file_name)
-                
-                blob.upload_from_file(image_file)
-                image_url = blob.public_url
+                if storage:
+                    storage_client = storage.Client()
+                    bucket = storage_client.bucket('JELLO-line-images') # ★ご自身のGCSバケット名
+                    
+                    file_name = f'admin_sent/{uuid.uuid4()}_{image_file.name}'
+                    blob = bucket.blob(file_name)
+                    
+                    blob.upload_from_file(image_file)
+                    image_url = blob.public_url
 
-                customer_ine_bot_api.push_message(
-                    customer.line_user_id,
-                    ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
-                )
-                LineMessage.objects.create(
-                     customer=customer,
-                     image_url=image_url,
-                     sender_type='admin'
-                )
+                    if customer_ine_bot_api and ImageSendMessage:
+                        customer_ine_bot_api.push_message(
+                            customer.line_user_id,
+                            ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
+                        )
+                    LineMessage.objects.create(
+                         customer=customer,
+                         image_url=image_url,
+                         sender_type='admin'
+                    )
 
             return Response({'status': 'メッセージを送信しました。'}, status=status.HTTP_200_OK)
 
         except Exception as e:
             logger.error(f"メッセージ送信中に予期せぬエラーが発生: {e}", exc_info=True)
             return Response({'error': 'サーバー内部でエラーが発生しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=True, methods=['post'], url_path='generate-line-link')
-    def generate_line_link(self, request, pk=None):
-        """指定された顧客のLINE連携用リンクを生成する"""
-        customer = self.get_object()
-        
-        # 既にLINE連携済みの場合はエラーを返す
-        if customer.line_user_id:
-            return Response({
-                'error': 'この顧客は既にLINE連携済みです。',
-                'line_display_name': customer.line_display_name
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # フロントエンドのLINE連携ページURL生成
-            base_url = os.environ.get('FRONTEND_URL', 'https://your-frontend-url')
-            link_url = f"{base_url}/link-customer/{customer.id}"
-            
-            # 管理者へのLINE通知
-            try:
-                from .notifications import send_admin_line_notification
-                send_admin_line_notification(
-                    f"顧客LINE連携URLが生成されました。\n顧客: {customer.name}\n連携URL: {link_url}"
-                )
-            except Exception as e:
-                logger.warning(f"管理者LINE通知の送信に失敗しました: {e}")
-
-            return Response({
-                'link_url': link_url,
-                'message': f'顧客「{customer.name}」のLINE連携URLを生成しました。'
-            }, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            logger.error(f"LINE連携URL生成エラー: {e}")
-            return Response({
-                'error': 'LINE連携URLの生成に失敗しました。'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         
 @api_view(['GET'])
@@ -1199,27 +1451,30 @@ def send_bulk_message(request):
 
     image_url = None
     if image_file:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket('JELLO-line-images')  # ご自身のGCSバケット名
-        file_name = f'admin_bulk/{uuid.uuid4()}_{image_file.name}'
-        blob = bucket.blob(file_name)
-        blob.upload_from_file(image_file)
-        image_url = blob.public_url
+        if storage:
+            storage_client = storage.Client()
+            bucket = storage_client.bucket('JELLO-line-images')  # ご自身のGCSバケット名
+            file_name = f'admin_bulk/{uuid.uuid4()}_{image_file.name}'
+            blob = bucket.blob(file_name)
+            blob.upload_from_file(image_file)
+            image_url = blob.public_url
 
     for customer in customers:
         try:
             if text:
-                customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
+                if customer_ine_bot_api and TextSendMessage:
+                    customer_ine_bot_api.push_message(customer.line_user_id, TextSendMessage(text=text))
                 LineMessage.objects.create(
                     customer=None,
                     message=text,
                     sender_type='admin'
                 )
             if image_url:
-                customer_ine_bot_api.push_message(
-                    customer.line_user_id,
-                    ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
-                )
+                if customer_ine_bot_api and ImageSendMessage:
+                    customer_ine_bot_api.push_message(
+                        customer.line_user_id,
+                        ImageSendMessage(original_content_url=image_url, preview_image_url=image_url)
+                    )
                 LineMessage.objects.create(
                     customer=None,
                     image_url=image_url,
@@ -1228,4 +1483,70 @@ def send_bulk_message(request):
         except Exception as e:
             logger.error(f"顧客 {customer.id} への一括送信失敗: {e}")
     return Response({'status': 'ok'}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def send_staff_notification(request):
+    """
+    LINE連携した全職員に通知を送信するAPI
+    """
+    text = request.data.get('text')
+    image_file = request.FILES.get('image')
+    target_staff_id = request.data.get('target_staff_id')  # 特定の職員に送信する場合
+
+    if not text and not image_file:
+        return Response({'error': 'テキストまたは画像を指定してください。'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        if target_staff_id:
+            # 特定の職員に送信
+            from .notifications import send_staff_line_notification
+            if text:
+                success, result = send_staff_line_notification(target_staff_id, text)
+                if not success:
+                    return Response({'error': f'送信失敗: {result}'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # 全職員に送信
+            if text:
+                from .notifications import send_admin_line_notification
+                success, result = send_admin_line_notification(text)
+                if not success:
+                    return Response({'error': f'送信失敗: {result}'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if image_file:
+                # 画像をGCSにアップロード
+                if storage:
+                    storage_client = storage.Client()
+                    bucket = storage_client.bucket('JELLO-line-images')
+                    file_name = f'staff_notification/{uuid.uuid4()}_{image_file.name}'
+                    blob = bucket.blob(file_name)
+                    blob.upload_from_file(image_file)
+                    image_url = blob.public_url
+
+                    from .notifications import send_admin_line_image
+                    success, result = send_admin_line_image(image_url)
+                    if not success:
+                        return Response({'error': f'画像送信失敗: {result}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'status': '通知を送信しました。'}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"職員通知送信中にエラー: {e}", exc_info=True)
+        return Response({'error': 'サーバー内部でエラーが発生しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAdminUser])
+def get_staff_line_status(request):
+    """
+    職員のLINE連携状況を取得するAPI
+    """
+    try:
+        from .notifications import get_staff_line_status
+        status_list = get_staff_line_status()
+        return Response({'staff_status': status_list}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"職員ステータス取得中にエラー: {e}", exc_info=True)
+        return Response({'error': 'サーバー内部でエラーが発生しました。'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     

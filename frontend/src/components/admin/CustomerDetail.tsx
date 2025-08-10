@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axiosConfig';
-import { ArrowLeft, Edit, MessageSquare, Clock, Link, Copy, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Edit, MessageSquare, Clock, Calendar } from 'lucide-react';
 import ReservationForCustomerModal from './ReservationForCustomerModal';
 
 // 型定義
@@ -13,8 +13,6 @@ interface Customer {
   phone_number: string;
   memo: string;
   created_at: string;
-  line_user_id?: string;
-  line_display_name?: string;
 }
 
 interface Reservation {
@@ -33,10 +31,57 @@ const CustomerDetail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [linkUrl, setLinkUrl] = useState<string | null>(null);
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
-  const [linkMessage, setLinkMessage] = useState<string>('');
-  const [copied, setCopied] = useState(false);
+
+  // 顧客詳細データを再取得する関数
+  const refetchCustomerData = async () => {
+    try {
+      // 予約履歴の取得
+      const reservationsResponse = await api.get(`/api/admin/customers/${customerId}/reservations/`);
+      setReservations(reservationsResponse.data);
+    } catch (err) {
+      console.error("予約履歴の再取得に失敗しました:", err);
+    }
+  };
+
+  // ステータスを日本語に変換する関数
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'confirmed':
+        return '確定';
+      case 'pending':
+        return '保留中';
+      case 'cancelled':
+        return 'キャンセル';
+      case 'completed':
+        return '完了';
+      case 'no_show':
+        return '無断欠席';
+      default:
+        return status;
+    }
+  };
+
+  // ステータスに応じたスタイルクラスを取得する関数
+  const getStatusClass = (status: string): string => {
+    switch (status) {
+      case 'confirmed':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800';
+      case 'no_show':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  useEffect(() => {
+    console.log("showModal state changed:", showModal);
+  }, [showModal]);
 
   useEffect(() => {
     const fetchCustomerDetails = async () => {
@@ -64,38 +109,6 @@ const CustomerDetail: React.FC = () => {
     }
   }, [customerId]);
 
-  // LINE連携URL生成
-  const generateLineLink = async () => {
-    if (!customer) return;
-    
-    setIsGeneratingLink(true);
-    setLinkMessage('');
-    
-    try {
-      const response = await api.post(`/api/admin/customers/${customer.id}/generate-line-link/`);
-      setLinkUrl(response.data.link_url);
-      setLinkMessage(response.data.message);
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.error || 'LINE連携URLの生成に失敗しました。';
-      setLinkMessage(errorMessage);
-    } finally {
-      setIsGeneratingLink(false);
-    }
-  };
-
-  // URLをクリップボードにコピー
-  const copyToClipboard = async () => {
-    if (!linkUrl) return;
-    
-    try {
-      await navigator.clipboard.writeText(linkUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('クリップボードへのコピーに失敗しました:', err);
-    }
-  };
-
   if (isLoading) {
     return <div className="text-center p-10">読み込み中...</div>;
   }
@@ -108,8 +121,10 @@ const CustomerDetail: React.FC = () => {
     return <div className="text-center p-10">顧客情報が見つかりません。</div>;
   }
 
+  console.log("CustomerDetail rendering - customerId:", customerId, "customer:", customer);
+
   return (
-    <div className="container mx-auto p-4 md:p-6">
+    <div className="container mx-auto p-2 md:p-4 max-w-6xl">
       <button
         onClick={() => navigate('/admin/customers')}
         className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
@@ -119,39 +134,23 @@ const CustomerDetail: React.FC = () => {
       </button>
 
       {/* 顧客情報 */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md mb-4 md:mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center">
           <div className="flex-grow">
             <p className="text-sm text-gray-500">{customer.furigana}</p>
-            <h2 className="text-3xl font-bold whitespace-nowrap">{customer.name}</h2>
+            <h2 className="text-lg font-bold whitespace-nowrap">{customer.name}</h2>
             <div className="mt-2 text-gray-700">
               <p>メールアドレス: {customer.email || '未登録'}</p>
               <p>電話番号: {customer.phone_number || '未登録'}</p>
-              <p className="flex items-center gap-2">
-                LINE連携: 
-                {customer.line_user_id ? (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                    <CheckCircle size={14} className="mr-1" />
-                    連携済み
-                    {customer.line_display_name && (
-                      <span className="ml-1">({customer.line_display_name})</span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                    未連携
-                  </span>
-                )}
-              </p>
             </div>
           </div>
         </div>
       </div>
 
       {/* アクション */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <h3 className="text-xl font-bold mb-4">アクション</h3>
-        <div className="flex flex-wrap gap-4">
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md mb-4 md:mb-6 border-2">
+        <h3 className="text-lg font-bold mb-4">アクション</h3>
+        <div className="flex flex-wrap gap-4 border p-2">{/* デバッグ用ボーダー */}
           <button
             onClick={() => navigate(`/admin/customers/${customerId}/memo`)}
             className="inline-flex items-center bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
@@ -159,108 +158,71 @@ const CustomerDetail: React.FC = () => {
             <Edit size={18} className="mr-2" />
             顧客メモを編集
           </button>
-          
-          {/* LINE連携済みの場合のみメッセージ送信ボタンを表示 */}
-          {customer.line_user_id && (
-            <button
-              onClick={() => navigate(`/admin/customers/${customerId}/send-message`)}
-              className="inline-flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors"
-            >
-              <MessageSquare size={18} className="mr-2" />
-              LINEでメッセージを送信
-            </button>
-          )}
-
-          {/* LINE未連携の場合は連携URL作成ボタンを表示 */}
-          {!customer.line_user_id && (
-            <button
-              onClick={generateLineLink}
-              disabled={isGeneratingLink}
-              className="inline-flex items-center bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 transition-colors disabled:opacity-50"
-            >
-              <Link size={18} className="mr-2" />
-              {isGeneratingLink ? 'URL生成中...' : 'LINE連携URL作成'}
-            </button>
-          )}
-
+          <button
+            onClick={() => navigate(`/admin/customers/${customerId}/send-message`)}
+            className="inline-flex items-center bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors"
+          >
+            <MessageSquare size={18} className="mr-2" />
+            LINEでメッセージを送信
+          </button>
           {/* ▼▼▼【ここを修正】▼▼▼ */}
           <button
-            onClick={() => navigate(`/admin/customers/${customerId}/history`)}
+            onClick={() => navigate(`/admin/line-history?query=${encodeURIComponent(customer.name)}`)}
             className="inline-flex items-center bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors"
           >
             <Clock size={18} className="mr-2" />
             チャット履歴
           </button>
           <button
-            className="inline-flex items-center bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark transition-colors"
-            onClick={() => setShowModal(true)}
+            className="inline-flex items-center bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors"
+            onClick={() => {
+              console.log("予約作成ボタンがクリックされました");
+              setShowModal(true);
+            }}
           >
+            <Calendar size={18} className="mr-2" />
             予約作成
           </button>
         </div>
-
-        {/* LINE連携URL表示 */}
-        {linkUrl && (
-          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-md">
-            <h4 className="text-sm font-semibold text-purple-800 mb-2">LINE連携URL</h4>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={linkUrl}
-                readOnly
-                className="flex-1 p-2 text-sm border rounded bg-white"
-              />
-              <button
-                onClick={copyToClipboard}
-                className="inline-flex items-center px-3 py-2 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
-              >
-                {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
-                <span className="ml-1">{copied ? 'コピー済み' : 'コピー'}</span>
-              </button>
-            </div>
-            <p className="text-xs text-purple-600 mt-2">
-              このURLを顧客に送信してLINE連携を案内してください。
-            </p>
-          </div>
-        )}
-
-        {/* メッセージ表示 */}
-        {linkMessage && (
-          <div className={`mt-4 p-3 rounded-md text-sm ${
-            linkMessage.includes('成功') || linkMessage.includes('生成しました') 
-              ? 'bg-green-100 text-green-700' 
-              : 'bg-red-100 text-red-700'
-          }`}>
-            {linkMessage}
-          </div>
-        )}
       </div>
 
       {/* 予約履歴 */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-xl font-bold mb-4">予約履歴</h3>
+      <div className="bg-white p-4 md:p-6 rounded-lg shadow-md">
+        <h3 className="text-lg font-bold mb-4">予約履歴</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-100">
-                <th className="p-3">予約日時</th>
-                <th className="p-3">メニュー</th>
-                <th className="p-3">ステータス</th>
+                <th className="p-3 w-1/3">予約日時</th>
+                <th className="p-3 w-1/3">メニュー</th>
+                <th className="p-3 w-1/3">ステータス</th>
               </tr>
             </thead>
             <tbody>
               {reservations.length > 0 ? (
                 reservations.map((reservation) => (
                   <tr key={reservation.reservation_number} className="border-b">
-                    <td className="p-3">{new Date(reservation.start_time).toLocaleString('ja-JP')}</td>
-                    <td className="p-3">{reservation.service_name}</td>
                     <td className="p-3">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        reservation.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                        reservation.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {reservation.status}
+                      <div className="flex flex-col">
+                        <div className="font-medium">
+                          {new Date(reservation.start_time).toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                          })}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {new Date(reservation.start_time).toLocaleTimeString('ja-JP', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-3">{reservation.service_name}</td>
+                    <td className="p-3 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${getStatusClass(reservation.status)}`}>
+                        {getStatusLabel(reservation.status)}
                       </span>
                     </td>
                   </tr>
@@ -275,12 +237,19 @@ const CustomerDetail: React.FC = () => {
         </div>
       </div>
 
-      {showModal && (
-        <ReservationForCustomerModal
-          customerId={String(customer.id)}
-          onClose={() => setShowModal(false)}
-        />
-      )}
+      {showModal && (() => {
+        console.log("Rendering ReservationForCustomerModal with customerId:", String(customer.id));
+        return (
+          <ReservationForCustomerModal
+            customerId={String(customer.id)}
+            onClose={() => {
+              console.log("モーダルを閉じます");
+              setShowModal(false);
+              refetchCustomerData(); // 予約データを再取得
+            }}
+          />
+        );
+      })()}
     </div>
   );
 };

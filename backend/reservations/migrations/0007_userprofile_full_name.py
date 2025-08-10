@@ -3,6 +3,11 @@
 from django.db import migrations, models
 
 
+def do_nothing(apps, schema_editor):
+    """何もしない（no-op操作）"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,9 +15,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='userprofile',
-            name='full_name',
-            field=models.CharField(blank=True, max_length=255, null=True, verbose_name='氏名'),
-        ),
+        # full_nameフィールドは不要なため、何もしない
+        migrations.RunPython(do_nothing, do_nothing),
     ]
