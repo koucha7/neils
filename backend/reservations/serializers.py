@@ -75,11 +75,6 @@ class ReservationSerializer(serializers.ModelSerializer):
     # 関連モデルの情報をネストして表示
     customer = CustomerSerializer(read_only=True)
     service = ServiceSerializer(read_only=True)
-    
-    # フラットなフィールドも追加（フロントエンド互換性のため）
-    customer_name = serializers.CharField(source='customer.name', read_only=True)
-    customer_id = serializers.IntegerField(source='customer.id', read_only=True)
-    service_name = serializers.CharField(source='service.name', read_only=True)
 
     class Meta:
         model = Reservation

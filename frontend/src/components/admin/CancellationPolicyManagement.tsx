@@ -26,7 +26,7 @@ const CancellationPolicyManagement: React.FC = () => {
 
   return (
     <div>
-      <h2 className="text-lg font-bold mb-6 whitespace-nowrap">キャンセルポリシー設定</h2>
+      <h2 className="text-2xl font-bold mb-6 whitespace-nowrap">キャンセルポリシー設定</h2>
       <div className="bg-white p-6 rounded-lg shadow max-w-lg">
         {/* Cancellation policy form JSX here */}
       </div>

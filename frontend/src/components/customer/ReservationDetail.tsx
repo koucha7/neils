@@ -33,24 +33,6 @@ const ReservationDetail: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
 
-    // ステータスを日本語に変換する関数
-    const getStatusLabel = (status: string): string => {
-        switch (status) {
-            case 'confirmed':
-                return '確定';
-            case 'pending':
-                return '保留中';
-            case 'cancelled':
-                return 'キャンセル';
-            case 'completed':
-                return '完了';
-            case 'no_show':
-                return '無断欠席';
-            default:
-                return status;
-        }
-    };
-
     const fetchReservation = useCallback(async () => {
         if (!reservationNumber) {
             setError("予約番号が指定されていません。");
@@ -131,7 +113,7 @@ const ReservationDetail: React.FC = () => {
                     <p><strong>電話番号:</strong> {reservation.customer_phone || 'なし'}</p>
                     <p><strong>ステータス:</strong>
                         <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${reservation.status === 'pending' ? 'bg-yellow-200 text-yellow-800' : reservation.status === 'confirmed' ? 'bg-green-200 text-green-800' : reservation.status === 'cancelled' ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-800'}`}>
-                            {getStatusLabel(reservation.status)}
+                            {reservation.status}
                         </span>
                     </p>
                 </div>

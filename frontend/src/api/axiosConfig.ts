@@ -68,68 +68,49 @@ api.interceptors.request.use(
   }
 );
 
-// ===== レスポンスインターセプター =====
+// ===== レスポンスインターセプター（変更なし） =====
 api.interceptors.response.use(
   (response) => {
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
-    
-    // 401エラーの場合
-    if (error.response?.status === 401) {
-      // 管理者APIの場合
-      if (originalRequest.url?.startsWith('/api/admin/')) {
-        // リフレッシュトークンが使用可能で、まだリトライしていない場合
-        if (
-          error.response.data.code === "token_not_valid" &&
-          !originalRequest._retry
-        ) {
-          originalRequest._retry = true;
+    // 401エラーかつリフレッシュトークンが必要な場合
+    // ここでのリフレッシュはadminAccessTokenのみを対象と仮定
+    if (
+      error.response?.status === 401 &&
+      error.response.data.code === "token_not_valid" &&
+      !originalRequest._retry &&
+      originalRequest.url?.startsWith('/api/admin/') // admin APIのリフレッシュのみを処理
+    ) {
+      originalRequest._retry = true;
 
-          const refreshToken = localStorage.getItem("adminRefreshToken");
-          if (refreshToken) {
-            try {
-              const tokenRefreshResponse = await axios.post(
-                `${API_BASE_URL}/api/token/refresh/`,
-                {
-                  refresh: refreshToken,
-                }
-              );
-              const newAccessToken = tokenRefreshResponse.data.access;
-              
-              // 新しいリフレッシュトークンも更新（ROTATE_REFRESH_TOKENS=Trueの場合）
-              if (tokenRefreshResponse.data.refresh) {
-                localStorage.setItem("adminRefreshToken", tokenRefreshResponse.data.refresh);
-              }
-              
-              localStorage.setItem("adminAccessToken", newAccessToken);
-              originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-              return api(originalRequest);
-            } catch (refreshError) {
-              console.error("トークンリフレッシュに失敗しました:", refreshError);
-              // トークンをクリアして強制ログアウト
-              localStorage.removeItem("adminAccessToken");
-              localStorage.removeItem("adminRefreshToken");
-              window.location.href = "/admin";
-              return Promise.reject(refreshError);
+      const refreshToken = localStorage.getItem("adminRefreshToken");
+      if (refreshToken) {
+        try {
+          const tokenRefreshResponse = await axios.post(
+            `${API_BASE_URL}/api/token/refresh/`,
+            {
+              refresh: refreshToken,
             }
-          } else {
-            // リフレッシュトークンがない場合は即座にログアウト
-            localStorage.removeItem("adminAccessToken");
-            localStorage.removeItem("adminRefreshToken");
-            window.location.href = "/admin";
-          }
-        } else {
-          // リトライ済みまたはリフレッシュできない401エラーの場合は強制ログアウト
+          );
+          const newAccessToken = tokenRefreshResponse.data.access;
+          localStorage.setItem("adminAccessToken", newAccessToken);
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          return api(originalRequest);
+        } catch (refreshError) {
+          console.error(
+            "アクセストークンのリフレッシュに失敗しました:",
+            refreshError
+          );
           localStorage.removeItem("adminAccessToken");
           localStorage.removeItem("adminRefreshToken");
-          window.location.href = "/admin";
+          // 管理者画面のログインページへリダイレクト
+          window.location.href = "/admin"; 
+          return Promise.reject(refreshError);
         }
       }
-      // 顧客APIの場合は従来通り（必要に応じて実装）
     }
-    
     return Promise.reject(error);
   }
 );

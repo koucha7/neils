@@ -113,7 +113,7 @@ const AttendanceManagement: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-bold text-gray-800 whitespace-nowrap">受付時間設定</h1>
+      <h1 className="text-3xl font-bold text-gray-800 whitespace-nowrap">受付時間設定</h1>
       <div className="bg-white p-6 rounded-lg shadow-md">
         <p className="text-gray-600 mb-4">
           カレンダーの日付をクリックして、予約を受け付ける30分単位の時間枠を個別に設定します。

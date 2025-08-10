@@ -44,16 +44,13 @@ const LineHistoryPage: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const navigate = useNavigate();
 
-  const initialQuery = searchParams.get("query") || "";
-  
   const [filters, setFilters] = useState<HistoryFilters>({
     customer_id: searchParams.get("customer_id") || "",
     start_date: searchParams.get("start_date") || "",
     end_date: searchParams.get("end_date") || "",
-    query: initialQuery,
+    query: searchParams.get("query") || "",
   });
 
-  // 検索フィルターは常に閉じた状態で開始
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
@@ -125,7 +122,7 @@ const LineHistoryPage: React.FC = () => {
       {/* ヘッダーをstickyで固定 */}
       <div className="sticky top-0 z-10 bg-white pb-2">
         <div className="flex justify-between items-center mb-4 px-4 pt-4 sm:px-0 sm:pt-0">
-          <h2 className="text-lg font-bold whitespace-nowrap">
+          <h2 className="text-2xl font-bold whitespace-nowrap">
             LINE メッセージ履歴
           </h2>
           <button
@@ -150,7 +147,7 @@ const LineHistoryPage: React.FC = () => {
               <input
                 type="text"
                 name="query"
-                placeholder="顧客名やメッセージ内容で検索..."
+                placeholder="顧客名や本文で検索..."
                 value={filters.query}
                 onChange={handleFilterChange}
                 className="p-2 border rounded w-full"
@@ -178,8 +175,9 @@ const LineHistoryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* メッセージ表示部分 - スクロール専用エリア */}
-      <div className="flex-1 overflow-y-auto p-4 border rounded-md bg-gray-100 space-y-4" style={{ height: 'calc(100vh - 200px)' }}>
+      {/* ▼▼▼【4. メッセージ表示部分を修正】▼▼▼ */}
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 border rounded-md bg-gray-100 space-y-4">
         {(() => {
           const rendered: JSX.Element[] = [];
           let prevDate: Date | null = null;
@@ -296,59 +294,57 @@ const LineHistoryPage: React.FC = () => {
           return rendered;
         })()}
         <div ref={messagesEndRef} />
-      </div>
-
-      {/* 顧客一括送信ボタンエリア - 常に下部に固定 */}
-      <div className="w-full flex flex-col items-center bg-white border-t pt-4 sticky bottom-0">
-        {/* 顧客一括送信ボタンのみ表示 */}
-        {!isBulkFormOpen ? (
-          <button
-            className="px-6 py-3 bg-green-600 text-white rounded-full shadow-lg font-bold hover:bg-green-700"
-            onClick={() => setIsBulkFormOpen(true)}
-          >
-            顧客一括送信
-          </button>
-        ) : (
-          <form
-            className="w-full max-w-md bg-white p-4 rounded-lg shadow-xl flex flex-col gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleBulkSend();
-            }}
-          >
-            <h3 className="text-lg font-bold mb-2">全顧客にLINE一括送信</h3>
-            <textarea
-              className="w-full p-2 border rounded"
-              rows={4}
-              placeholder="顧客向けメッセージ本文"
-              value={bulkMessage}
-              onChange={(e) => setBulkMessage(e.target.value)}
-            />
-            <input
-              type="file"
-              accept="image/*"
-              className="mb-2"
-              onChange={(e) => setBulkImage(e.target.files?.[0] || null)}
-            />
-            <div className="flex gap-4 justify-end">
-              <button
-                type="button"
-                className="px-4 py-2 bg-gray-300 rounded"
-                onClick={() => setIsBulkFormOpen(false)}
-                disabled={isSending}
-              >
-                キャンセル
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-green-600 text-white rounded font-bold"
-                disabled={isSending}
-              >
-                {isSending ? "送信中..." : "全顧客に送信"}
-              </button>
-            </div>
-          </form>
-        )}
+        </div>
+        <div className="w-full flex flex-col items-center bg-white border-t pt-4 pb-6">
+          {!isBulkFormOpen ? (
+            <button
+              className="px-6 py-3 bg-green-600 text-white rounded-full shadow-lg font-bold hover:bg-green-700"
+              onClick={() => setIsBulkFormOpen(true)}
+            >
+              一括送信
+            </button>
+          ) : (
+            <form
+              className="w-full max-w-md bg-white p-4 rounded-lg shadow-xl flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleBulkSend();
+              }}
+            >
+              <h3 className="text-lg font-bold mb-2">全顧客にLINE一括送信</h3>
+              <textarea
+                className="w-full p-2 border rounded"
+                rows={4}
+                placeholder="メッセージ本文"
+                value={bulkMessage}
+                onChange={(e) => setBulkMessage(e.target.value)}
+              />
+              <input
+                type="file"
+                accept="image/*"
+                className="mb-2"
+                onChange={(e) => setBulkImage(e.target.files?.[0] || null)}
+              />
+              <div className="flex gap-4 justify-end">
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-gray-300 rounded"
+                  onClick={() => setIsBulkFormOpen(false)}
+                  disabled={isSending}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-green-600 text-white rounded font-bold"
+                  disabled={isSending}
+                >
+                  {isSending ? "送信中..." : "送信"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

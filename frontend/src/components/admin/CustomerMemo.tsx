@@ -46,7 +46,7 @@ const CustomerMemo: React.FC = () => {
         <button onClick={() => navigate(`/admin/customers/${customerId}`)} className="p-2 hover:bg-gray-100 rounded-full mr-4">
           <ArrowLeft size={24} />
         </button>
-        <h2 className="text-lg font-bold whitespace-nowrap">{customer.name}様のメモ</h2>
+        <h2 className="text-2xl font-bold whitespace-nowrap">{customer.name}様のメモ</h2>
       </div>
       <textarea
         value={notes}

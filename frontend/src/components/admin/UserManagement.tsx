@@ -39,7 +39,7 @@ const UserManagement: React.FC = () => {
   return (
     <div className="bg-white shadow-md rounded-lg p-4 sm:p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-bold whitespace-nowrap">社員管理</h2>
+        <h2 className="text-2xl font-bold whitespace-nowrap">社員管理</h2>
         <button 
           onClick={() => navigate('/admin/users/new')} // 新規作成ページへの遷移を有効化
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 border rounded-lg hover:bg-blue-700"

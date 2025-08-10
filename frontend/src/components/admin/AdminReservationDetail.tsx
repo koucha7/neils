@@ -25,24 +25,6 @@ const AdminReservationDetail: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
 
-    // ステータスを日本語に変換する関数
-    const getStatusLabel = (status: string): string => {
-        switch (status) {
-            case 'confirmed':
-                return '確定';
-            case 'pending':
-                return '保留中';
-            case 'cancelled':
-                return 'キャンセル';
-            case 'completed':
-                return '完了';
-            case 'no_show':
-                return '無断欠席';
-            default:
-                return status;
-        }
-    };
-
     const fetchReservation = useCallback(async () => {
         if (!reservationNumber) return;
         try {
@@ -91,12 +73,12 @@ const AdminReservationDetail: React.FC = () => {
                 <button onClick={() => navigate('/admin/reservations')} className="p-2 rounded-full hover:bg-gray-100 mr-4">
                     <ArrowLeft size={24} />
                 </button>
-                <h2 className="text-lg font-bold text-gray-800 whitespace-nowrap">予約詳細</h2>
+                <h2 className="text-2xl font-bold text-gray-800 whitespace-nowrap">予約詳細</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700">
                 <p><strong>予約番号:</strong> {reservation.reservation_number}</p>
-                <p><strong>ステータス:</strong> {getStatusLabel(reservation.status)}</p>
+                <p><strong>ステータス:</strong> {reservation.status}</p>
                 <div>
                     <strong>顧客名:</strong>
                     <Link 
